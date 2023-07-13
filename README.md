@@ -1,5 +1,4 @@
-# (Old Description for DPO, to be updated)
-# DPO: Direct Preference Optimization
+# DPO (Direct Preference Optimization) for RLAIF and Distillation
 
 ## What is this repo?
 
