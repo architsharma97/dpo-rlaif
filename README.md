@@ -1,4 +1,5 @@
-# DPO: Direct Preference Optimization, Your Language Model is Secretly a Reward Model
+# (Old Description for DPO, to be updated)
+# DPO: Direct Preference Optimization
 
 ## What is this repo?
 
