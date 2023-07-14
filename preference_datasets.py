@@ -182,7 +182,11 @@ def get_wikitext(split: str, silent: bool = False, cache_dir: str = None) -> Dic
 
     elif split == 'test':
         test_data = dataset['test']['text']
-
+        # test_data = [' Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as " Craig " in the episode " Teddy \'s Story " of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the <unk> Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . ',
+        #              ' In 2000 Boulter had a guest @-@ starring role on the television series The Bill ; he portrayed " Scott Parry " in the episode , " In Safe Hands " . Boulter starred as " Scott " in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . A review of Boulter \'s performance in The Independent on Sunday described him as " horribly menacing " in the role , and he received critical reviews in The Herald , and Evening Standard . He appeared in the television series Judge John Deed in 2002 as " <unk> Armitage " in the episode " Political <unk> " , and had a role as a different character " Toby Steele " on The Bill . ',
+        #              ' In 2006 Boulter starred in the play Citizenship written by Mark Ravenhill . The play was part of a series which featured different playwrights , titled Burn / <unk> / Citizenship . In a 2006 interview , fellow actor Ben Whishaw identified Boulter as one of his favorite co @-@ stars : " I loved working with a guy called Robert Boulter , who was in the triple bill of Burn , <unk> and Citizenship at the National . He played my brother in Mercury Fur . " He portrayed " Jason Tyler " on the 2006 episode of the television series , Doctors , titled " Something I Ate " . Boulter starred as " William " in the 2007 production of How to Curse directed by Josie Rourke . How to Curse was performed at Bush Theatre in the London Borough of Hammersmith and Fulham . In a review of the production for The Daily Telegraph , theatre critic Charles Spencer noted , " Robert Boulter brings a touching vulnerability to the stage as William . " ',
+        #              ' Boulter starred in two films in 2008 , Daylight Robbery by filmmaker Paris <unk> , and Donkey Punch directed by Olly Blackburn . Boulter portrayed a character named " Sean " in Donkey Punch , who tags along with character " Josh " as the " quiet brother ... who hits it off with Tammi " . Boulter guest starred on a two @-@ part episode arc " Wounds " in May 2008 of the television series Waking the Dead as character " Jimmy Dearden " . He appeared on the television series Survivors as " Neil " in November 2008 . He had a recurring role in ten episodes of the television series Casualty in 2010 , as " Kieron Fletcher " . He portrayed an emergency physician applying for a medical fellowship . He commented on the inherent difficulties in portraying a physician on television : " Playing a doctor is a strange experience . Pretending you know what you \'re talking about when you don \'t is very bizarre but there are advisers on set who are fantastic at taking you through procedures and giving you the confidence to stand there and look like you know what you \'re doing . " Boulter starred in the 2011 film Mercenaries directed by Paris <unk> . ',
+        #              ' Du Fu ( Wade – Giles : Tu Fu ; Chinese : <unk> ; 712 – 770 ) was a prominent Chinese poet of the Tang dynasty . Along with Li Bai ( Li Po ) , he is frequently called the greatest of the Chinese poets . His greatest ambition was to serve his country as a successful civil servant , but he proved unable to make the necessary accommodations . His life , like the whole country , was devastated by the An Lushan Rebellion of 755 , and his last 15 years were a time of almost constant unrest . ',]
         for entry in test_data:
             if len(entry) > 100:
                 words = entry.split(' ')
@@ -194,7 +198,6 @@ def get_wikitext(split: str, silent: bool = False, cache_dir: str = None) -> Dic
                 if len(data) >= 128:
                     break
 
-    import pdb; pdb.set_trace()
     return data
 
 
@@ -233,7 +236,12 @@ def get_collate_fn(tokenizer) -> Callable[[List[Dict]], Dict[str, Union[List, to
                     to_pad = [torch.LongTensor(ex[k][::-1]) for ex in batch]
                 else:
                     to_pad = [torch.LongTensor(ex[k]) for ex in batch]
-                padding_value = 0 if k.endswith('_attention_mask') else tokenizer.pad_token_id
+                if k.endswith('_input_ids'):
+                    padding_value = tokenizer.pad_token_id
+                elif k.endswith('_labels'):
+                    padding_value = -100
+                else:
+                    padding_value = 0
                 padded_batch[k] = pad_sequence(to_pad, batch_first=True, padding_value=padding_value)
                 if 'prompt' in k:  # for the prompt, flip back so padding is on left side
                     padded_batch[k] = padded_batch[k].flip(dims=[1])
@@ -417,6 +425,7 @@ def strings_match_up_to_spaces(str_a: str, str_b: str) -> bool:
                     str_b = str_b[:idx] + str_b[idx + 1:]
 
     return True
+
 
 if __name__ == '__main__':
     import transformers

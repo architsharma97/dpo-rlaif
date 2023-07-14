@@ -169,6 +169,7 @@ class BasicTrainer(object):
         self.eval_batches = list(self.eval_iterator)
         rank0_print(f'Loaded {len(self.eval_batches)} eval batches of size {config.eval_batch_size}')
 
+
     def get_batch_samples(self, batch: Dict[str, torch.LongTensor]) -> Tuple[str, str]:
         """Generate samples from the policy (and reference model, if doing DPO training) for the given batch of inputs."""
 
@@ -190,7 +191,8 @@ class BasicTrainer(object):
             reference_output_decoded = []
 
         return policy_output_decoded, reference_output_decoded
-    
+
+
     def concatenated_forward(self, model: nn.Module, batch: Dict[str, Union[List, torch.LongTensor]]) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
         """Run the given model on the given batch of inputs, concatenating the chosen and rejected inputs together.
         
@@ -245,8 +247,8 @@ class BasicTrainer(object):
 
         all_devices_losses = all_gather_if_needed(losses.detach(), self.rank, self.world_size)
         metrics[f'loss/{train_test}'] = all_devices_losses.cpu().numpy().tolist()
-
         return losses.mean(), metrics
+
 
     def train(self):
         """Begin either SFT or DPO training, with periodic evaluation."""
@@ -360,10 +362,12 @@ class BasicTrainer(object):
 
             if last_log is None or time.time() - last_log > self.config.minimum_log_interval_secs:
                 mean_train_metrics = {k: sum(v) / len(v) for k, v in batch_metrics.items()}
+                for k, v in mean_train_metrics.items():
+                    if 'ppl' in k:
+                        mean_train_metrics[k] = np.exp(-v)
                 mean_train_metrics['counters/examples'] = self.example_counter
                 mean_train_metrics['counters/updates'] = self.batch_counter
                 rank0_print(f'train stats after {self.example_counter} examples: {formatted_dict(mean_train_metrics)}')
-
                 if self.config.wandb.enabled and self.rank == 0:
                     wandb.log(mean_train_metrics, step=self.example_counter)
 
@@ -376,6 +380,7 @@ class BasicTrainer(object):
     def clip_gradient(self):
         """Clip the gradient norm of the parameters of a non-FSDP policy."""
         return torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.config.max_grad_norm).item()
+
 
     def write_state_dict(self, step: int, state: Dict[str, torch.Tensor], metrics: Dict, filename: str, dir_name: Optional[str] = None):
         """Write a checkpoint to disk."""
@@ -390,7 +395,8 @@ class BasicTrainer(object):
             'state': state,
             'metrics': metrics if metrics is not None else {},
         }, output_path)
-    
+
+
     def save(self, output_dir: Optional[str] = None, metrics: Optional[Dict] = None):
         """Save policy, optimizer, and scheduler state to disk."""
 
@@ -515,4 +521,36 @@ class TensorParallelTrainer(BasicTrainer):
     
         self.write_state_dict(self.example_counter, policy_state_dict, metrics, 'policy.pt', output_dir)
         del policy_state_dict
-        
+
+if __name__ == '__main__':
+    import datasets
+    cache_dir = '/dev/shm/.cache'
+    dataset = datasets.load_dataset('wikitext', 'wikitext-2-raw-v1', cache_dir=cache_dir)
+    test_data = dataset['test']['text']
+    f = []
+    for entry in test_data:
+        if len(entry) > 100:
+            f.append(entry)
+            if len(f) >= 120:
+                break
+
+    import transformers
+    cache_dir = '/dev/shm/.cache'
+    tokenizer = transformers.AutoTokenizer.from_pretrained('gpt2-xl', cache_dir=cache_dir)
+    tokenizer.pad_token_id = tokenizer.eos_token_id
+    iterator = get_batch_iterator(['wiki'], tokenizer=tokenizer, split='test', batch_size=1, sft_mode=True, seed=0, n_epochs=1, cache_dir=cache_dir, shuffle=False)
+    eval_batches = list(iterator)
+
+    policy = transformers.AutoModelForCausalLM.from_pretrained(
+        'gpt2-xl', cache_dir=cache_dir, low_cpu_mem_usage=True, device_map='balanced')
+
+    n_tokens = 0
+    total_logp = 0.
+    for batch in eval_batches:
+        policy_chosen_logits = policy(batch['chosen_input_ids'], attention_mask=batch['chosen_attention_mask']).logits.to(torch.float32)
+        with torch.no_grad():
+            policy_chosen_ppl = _get_batch_logps(policy_chosen_logits, batch['chosen_labels'], average_log_prob=False)
+        total_logp += policy_chosen_ppl.sum().item()
+        n_tokens += (batch['chosen_labels'] != -100).sum().item()
+        print(policy_chosen_ppl, total_logp, n_tokens)
+    print('perplexity: ', np.exp(-total_logp / n_tokens).item())
