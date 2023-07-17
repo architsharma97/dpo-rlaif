@@ -324,7 +324,7 @@ class BasicTrainer(object):
                         if self.config.loss.name == 'dpo':
                             wandb.log({"reference_samples": reference_text_table}, step=self.example_counter)
 
-                if self.example_counter > 0:
+                if self.example_counter > 0 and self.config.save_models:
                     if self.config.debug:
                         rank0_print('skipping save in debug mode')
                     else:

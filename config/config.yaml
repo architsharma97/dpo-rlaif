@@ -60,7 +60,7 @@ max_length: 512
 max_prompt_length: 256
 
 # the number of epochs to train for; if null, must specify n_examples
-n_epochs: 1000
+n_epochs: 10000
 
 # the number of examples to train for; if null, must specify n_epochs
 n_examples: null
@@ -85,6 +85,9 @@ eval_every: 100
 
 # prevent wandb from logging more than once per minimum_log_interval_secs
 minimum_log_interval_secs: 1.0
+
+# whether or not to save the model
+save_models: false
 
 defaults:
 - _self_
