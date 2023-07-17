@@ -24,17 +24,23 @@ datasets:
 wandb:
   enabled: true
   entity: null
-  project: "dpo-distillation"
+  project: "dpo-rlaif"
 
 # to create the local run directory and cache models/datasets,
 #   we will try each of these directories in order; if none exist,
 #   we will create the last one and use it
 local_dirs:
   - /dev/shm/.cache
+  - /scr-ssd
+  - /scr
+  - .cache
 
 # whether or not to generate samples during evaluation; disable for FSDP/TensorParallel
 #   is recommended, because they are slow
 sample_during_eval: true
+
+# how many model samples to generate during evaluation
+n_eval_model_samples: 16
 
 # whether to eval at the very beginning of training
 do_first_eval: true

@@ -1,4 +1,4 @@
-name_or_path: gpt2
+name_or_path: gpt2-large
 tokenizer_name_or_path: null
 archive: null
 block_name: GPT2Block

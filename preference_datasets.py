@@ -240,8 +240,11 @@ def get_collate_fn(tokenizer) -> Callable[[List[Dict]], Dict[str, Union[List, to
                     padding_value = tokenizer.pad_token_id
                 elif k.endswith('_labels'):
                     padding_value = -100
-                else:
+                elif k.endswith('_attention_mask'):
                     padding_value = 0
+                else:
+                    raise ValueError(f"Unexpected key in batch '{k}'")
+
                 padded_batch[k] = pad_sequence(to_pad, batch_first=True, padding_value=padding_value)
                 if 'prompt' in k:  # for the prompt, flip back so padding is on left side
                     padded_batch[k] = padded_batch[k].flip(dims=[1])

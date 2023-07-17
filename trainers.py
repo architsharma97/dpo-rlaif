@@ -17,6 +17,7 @@ from torch.distributed.fsdp import (
 from torch.distributed.fsdp.api import FullStateDictConfig, FullOptimStateDictConfig
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 import tensor_parallel as tp
+import contextlib
 
 from preference_datasets import get_batch_iterator
 from utils import (
@@ -169,15 +170,20 @@ class BasicTrainer(object):
         self.eval_batches = list(self.eval_iterator)
         rank0_print(f'Loaded {len(self.eval_batches)} eval batches of size {config.eval_batch_size}')
 
-
     def get_batch_samples(self, batch: Dict[str, torch.LongTensor]) -> Tuple[str, str]:
         """Generate samples from the policy (and reference model, if doing DPO training) for the given batch of inputs."""
 
-        policy_output = self.policy.generate(
-            batch['prompt_input_ids'], attention_mask=batch['prompt_attention_mask'], max_length=self.config.max_length, do_sample=True, pad_token_id=self.tokenizer.pad_token_id)
-        if self.config.loss.name == 'dpo':
-            reference_output = self.reference_model.generate(
+        # FSDP generation according to https://github.com/pytorch/pytorch/issues/100069
+        ctx = lambda: (FSDP.summon_full_params(self.policy, writeback=False, recurse=False) if 'FSDP' in self.config.trainer else contextlib.nullcontext())
+        with ctx():
+            policy_output = self.policy.generate(
                 batch['prompt_input_ids'], attention_mask=batch['prompt_attention_mask'], max_length=self.config.max_length, do_sample=True, pad_token_id=self.tokenizer.pad_token_id)
+
+        if self.config.loss.name == 'dpo':
+            ctx = lambda: (FSDP.summon_full_params(self.reference_model, writeback=False, recurse=False) if 'FSDP' in self.config.trainer else contextlib.nullcontext())
+            with ctx():
+                reference_output = self.reference_model.generate(
+                    batch['prompt_input_ids'], attention_mask=batch['prompt_attention_mask'], max_length=self.config.max_length, do_sample=True, pad_token_id=self.tokenizer.pad_token_id)
 
         policy_output = pad_to_length(policy_output, self.config.max_length, self.tokenizer.pad_token_id)
         policy_output = all_gather_if_needed(policy_output, self.rank, self.world_size)
@@ -247,8 +253,8 @@ class BasicTrainer(object):
 
         all_devices_losses = all_gather_if_needed(losses.detach(), self.rank, self.world_size)
         metrics[f'loss/{train_test}'] = all_devices_losses.cpu().numpy().tolist()
-        return losses.mean(), metrics
 
+        return losses.mean(), metrics
 
     def train(self):
         """Begin either SFT or DPO training, with periodic evaluation."""
@@ -281,7 +287,7 @@ class BasicTrainer(object):
                     if self.config.loss.name == 'dpo':
                         reference_text_table = wandb.Table(columns=["step", "prompt", "sample"])
 
-                for eval_batch in (tqdm.tqdm(self.eval_batches) if self.rank == 0 else self.eval_batches):
+                for eval_batch in (tqdm.tqdm(self.eval_batches, desc='Computing eval metrics') if self.rank == 0 else self.eval_batches):
                     local_eval_batch = slice_and_move_batch_for_device(eval_batch, self.rank, self.world_size, self.rank)
                     with torch.no_grad():
                         _, eval_metrics = self.get_batch_metrics(local_eval_batch, self.config.loss, train=False)
@@ -289,12 +295,16 @@ class BasicTrainer(object):
                     for k, v in eval_metrics.items():
                         all_eval_metrics[k].extend(v)
 
-                    if self.config.sample_during_eval:
-                        if 'FSDP' in self.config.trainer:
-                            with FSDP.summon_full_params(self.policy, writeback=False, recurse=False):
-                                policy_samples, reference_samples = self.get_batch_samples(local_eval_batch)
-                        else:
-                            policy_samples, reference_samples = self.get_batch_samples(local_eval_batch)
+                if self.config.sample_during_eval:
+                    if self.config.n_eval_model_samples < self.config.eval_batch_size:
+                        rank0_print(f'Warning: n_eval_model_samples ({self.config.n_eval_model_samples}) < eval_batch_size ({self.config.eval_batch_size}). Sampling from the first complete eval batch of prompts.')
+                        sample_batches = self.eval_batches[:1]
+                    else:
+                        n_sample_batches = self.config.n_eval_model_samples // self.config.eval_batch_size
+                        sample_batches = self.eval_batches[:n_sample_batches]
+                    for eval_batch in (tqdm.tqdm(sample_batches, desc='Generating samples...') if self.rank == 0 else sample_batches):
+                        local_eval_batch = slice_and_move_batch_for_device(eval_batch, self.rank, self.world_size, self.rank)
+                        policy_samples, reference_samples = self.get_batch_samples(local_eval_batch)
 
                         all_policy_samples.extend(policy_samples)
                         all_reference_samples.extend(reference_samples)
@@ -368,6 +378,7 @@ class BasicTrainer(object):
                 mean_train_metrics['counters/examples'] = self.example_counter
                 mean_train_metrics['counters/updates'] = self.batch_counter
                 rank0_print(f'train stats after {self.example_counter} examples: {formatted_dict(mean_train_metrics)}')
+
                 if self.config.wandb.enabled and self.rank == 0:
                     wandb.log(mean_train_metrics, step=self.example_counter)
 
@@ -453,13 +464,19 @@ class FSDPTrainer(BasicTrainer):
                 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
                     checkpoint_wrapper,
                     apply_activation_checkpointing,
+                    CheckpointImpl,
+                )
+                non_reentrant_wrapper = functools.partial(
+                    checkpoint_wrapper,
+                    offload_to_cpu=False,
+                    checkpoint_impl=CheckpointImpl.NO_REENTRANT,
                 )
             except Exception as e:
                 rank0_print('FSDP activation checkpointing not available:', e)
             else:
                 check_fn = lambda submodule: isinstance(submodule, wrap_class)
                 rank0_print('Applying activation checkpointing wrapper to policy...')
-                apply_activation_checkpointing(self.policy, checkpoint_wrapper_fn=checkpoint_wrapper, check_fn=check_fn)
+                apply_activation_checkpointing(self.policy, checkpoint_wrapper_fn=non_reentrant_wrapper, check_fn=check_fn)
                 rank0_print('FSDP activation checkpointing enabled!')
 
         if config.loss.name == 'dpo':
