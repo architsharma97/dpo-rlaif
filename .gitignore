@@ -1,4 +1,3 @@
 outputs/
 __pycache__
 data/
-eval_ckpt.sh
