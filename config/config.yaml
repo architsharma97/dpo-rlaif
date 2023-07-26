@@ -18,7 +18,7 @@ fsdp_port: 12355
 
 # which dataset(s) to train on; can pass a list like datasets=[hh,shp]
 datasets:
-- wiki
+- sharegpt
 
 # wandb configuration
 wandb:
@@ -30,10 +30,7 @@ wandb:
 #   we will try each of these directories in order; if none exist,
 #   we will create the last one and use it
 local_dirs:
-  - /dev/shm/.cache
-  - /scr-ssd
-  - /scr
-  - .cache
+  - /ebs/.cache
 
 # whether or not to generate samples during evaluation; disable for FSDP/TensorParallel
 #   is recommended, because they are slow
@@ -49,7 +46,7 @@ do_first_eval: true
 local_run_dir: ${get_local_run_dir:${exp_name},${local_dirs}}
 
 # the learning rate
-lr: 1e-5
+lr: 1e-6
 
 # number of steps to accumulate over for each batch
 #   (e.g. if batch_size=4 and gradient_accumulation_steps=2, then we will
@@ -66,7 +63,7 @@ max_length: 512
 max_prompt_length: 256
 
 # the number of epochs to train for; if null, must specify n_examples
-n_epochs: 10000
+n_epochs: 5
 
 # the number of examples to train for; if null, must specify n_epochs
 n_examples: null
@@ -87,13 +84,13 @@ warmup_steps: 0
 activation_checkpointing: false
 
 # evaluate and save model every eval_every steps
-eval_every: 100
+eval_every: 10000
 
 # prevent wandb from logging more than once per minimum_log_interval_secs
 minimum_log_interval_secs: 1.0
 
 # whether or not to save the model
-save_models: false
+save_models: 50000
 
 defaults:
 - _self_

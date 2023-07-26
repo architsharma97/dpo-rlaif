@@ -334,7 +334,7 @@ class BasicTrainer(object):
                         if self.config.loss.name == 'dpo':
                             wandb.log({"reference_samples": reference_text_table}, step=self.example_counter)
 
-                if self.example_counter > 0 and self.config.save_models:
+                if self.example_counter > 0 and self.example_counter % self.config.save_models == 0:
                     if self.config.debug:
                         rank0_print('skipping save in debug mode')
                     else:
@@ -538,6 +538,7 @@ class TensorParallelTrainer(BasicTrainer):
     
         self.write_state_dict(self.example_counter, policy_state_dict, metrics, 'policy.pt', output_dir)
         del policy_state_dict
+
 
 if __name__ == '__main__':
     import datasets

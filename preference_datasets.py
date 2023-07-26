@@ -9,6 +9,8 @@ import random
 from bs4 import BeautifulSoup, NavigableString
 import numpy as np
 from typing import Dict, List, Optional, Iterator, Callable, Union, Tuple
+import json
+import os
 
 
 def extract_anthropic_prompt(prompt_and_response):
@@ -136,7 +138,7 @@ def get_hh(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str,
        Prompts should be structured as follows:
          \n\nHuman: <prompt>\n\nAssistant:
        Multiple turns are allowed, but the prompt should always start with \n\nHuman: and end with \n\nAssistant:.
-       
+
        For this dataset, the sft_target is just the chosen response.
     """
     print(f'Loading HH dataset ({split} split) from Huggingface...')
@@ -161,6 +163,70 @@ def get_hh(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str,
     return data
 
 
+def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
+    """Load the ShareGPT dataset (needs to be local json file).
+
+       The dataset is converted to a dictionary with the following structure:
+       {
+           'prompt1': {
+               'responses': [],
+               'pairs': [],
+               'sft_target': str
+           },
+           'prompt2': {
+               ...
+           },
+       }
+
+       Prompts will be structured as follows:
+         \n\nHuman: <prompt>\n\nAssistant:
+       Multiple turns are allowed, but the prompt should always start with \n\nHuman: and end with \n\nAssistant:.
+
+       Only SFT targets are available.
+    """
+    print(f'Loading the ShareGPT dataset...')
+    with open(os.path.join(cache_dir, 'sharegpt_data', 'ShareGPT_V3_unfiltered_cleaned_split_no_imsorry.json')) as f:
+        dataset = json.load(f)
+    print('done')
+
+    filter_set = ['<s>', '</s>']
+    def _filter_conversation(conv):
+        for entry in conv['conversations']:
+            for f in filter_set:
+                if f in entry['value']:
+                    return True
+        return False
+
+    # NOTE: we only use the first two turns of the conversation
+    NUM_TURNS = 2
+    data = defaultdict(lambda: defaultdict(list))
+    for row in tqdm.tqdm(dataset, desc='Processing shareGPT', disable=silent):
+        if _filter_conversation(row):
+            print('filtered out', row['conversations'])
+            print('-' * 80)
+            continue
+
+        # each entry gives multiple SFT targets
+        prompt = ''
+        for entry in row['conversations'][:NUM_TURNS*2 + 1]:
+            if prompt == '':
+                if entry['from'] == 'human':
+                    prompt = 'Human: ' + entry['value'] + '\n\nAssistant: '
+                elif entry['from'] == 'gpt':
+                    prompt = 'Assistant: ' + entry['value'] + '\n\nHuman: '
+            else:
+                if entry['from'] == 'human':
+                    prompt += entry['value'] + '\n\nAssistant: '
+                elif entry['from'] == 'gpt':
+                    data[prompt]['sft_target'] = entry['value']
+                    data[prompt]['pairs'] = []
+                    data[prompt]['responses'] = []
+                    prompt += entry['value'] + '\n\nHuman: '
+
+    print(f'Created a SFT dataset with {len(data)} prompts from ShareGPT')
+    return data
+
+
 def get_wikitext(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
     """Load the WikiText dataset. Only returns SFT data.
 
@@ -176,9 +242,21 @@ def get_wikitext(split: str, silent: bool = False, cache_dir: str = None) -> Dic
 
     data = defaultdict(lambda: defaultdict(list))
     if split == 'train':
-        data['']['sft_target'] = dataset['train']['text'][2502]
+        train_data = dataset['train']['text']
+        data['']['sft_target'] = train_data[2502]
         data['']['responses'] = []
         data['']['pairs'] = []
+
+        for entry in train_data:
+            if len(entry) > 100:
+                words = entry.split(' ')
+                prompt = ' '.join(words[:10]) + ' '
+                completion = ' '.join(words[10:])
+                data[prompt]['pairs'] = []
+                data[prompt]['responses'] = []
+                data[prompt]['sft_target'] = completion
+                if len(data) >= 10:
+                    break
 
     elif split == 'test':
         test_data = dataset['test']['text']
@@ -201,6 +279,23 @@ def get_wikitext(split: str, silent: bool = False, cache_dir: str = None) -> Dic
     return data
 
 
+def get_alpaca_eval(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
+    """Returns the alpaca evaluation set."""
+    print(f'Loading Alpaca Evaluation Set...')
+    dataset = datasets.load_dataset("tatsu-lab/alpaca_eval", "alpaca_eval", cache_dir=cache_dir)["eval"]
+    print('done')
+
+    data = defaultdict(lambda: defaultdict(list))
+    for row in tqdm.tqdm(dataset, desc='Processing Alpaca Eval', disable=silent):
+        prompt = 'Human: ' + row['instruction'] + '\n\nAssistant: '
+        data[prompt]['sft_target'] = row['output'] # do not use, these are reference generations
+        data[prompt]['pairs'] = []
+        data[prompt]['responses'] = []
+
+    print(f'Created a SFT dataset with {len(data)} prompts from ShareGPT')
+    return data
+
+
 def get_dataset(name: str, split: str, silent: bool = False, cache_dir: str = None):
     """Load the given dataset by name. Supported by default are 'shp', 'hh', and 'se'."""
     if name == 'shp':
@@ -211,6 +306,10 @@ def get_dataset(name: str, split: str, silent: bool = False, cache_dir: str = No
         data = get_se(split, silent=silent, cache_dir=cache_dir)
     elif name == 'wiki':
         data = get_wikitext(split, silent=silent, cache_dir=cache_dir)
+    elif name == 'sharegpt':
+        data = get_sharegpt(split, silent=silent, cache_dir=cache_dir)
+    elif name == 'alpaca_eval':
+        data = get_alpaca_eval(split, silent=silent, cache_dir=cache_dir)
     else:
         raise ValueError(f"Unknown dataset '{name}'")
 
@@ -360,7 +459,7 @@ def get_batch_iterator(names: List[str],
         permutation_seeds = iter(np.random.randint(0, 2**32, size=1000000))
         flat_data = []
         for name in names:
-            truncation_mode = 'keep_end' if name == 'hh' else 'keep_start'
+            truncation_mode = 'keep_end' if name in ['hh', 'sharegpt'] else 'keep_start'
             for prompt, data in get_dataset(name, split, silent=silent, cache_dir=cache_dir).items():
                 flat_data.append((prompt, data['responses'], data['pairs'], data['sft_target'], truncation_mode))
 

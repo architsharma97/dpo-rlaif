@@ -96,7 +96,7 @@ def main(config: DictConfig):
         if config.loss.name == 'dpo':
             reference_model.load_state_dict(state_dict['state'])
         print('loaded pre-trained weights')
-    
+
     if 'FSDP' in config.trainer:
         world_size = torch.cuda.device_count()
         print('starting', world_size, 'processes for FSDP training')
