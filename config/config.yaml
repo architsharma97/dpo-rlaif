@@ -72,7 +72,7 @@ n_examples: null
 n_eval_examples: 256
 
 # the trainer class to use (e.g. BasicTrainer, FSDPTrainer, TensorParallelTrainer)
-trainer: BasicTrainer
+trainer: FSDPTrainer
 
 # The optimizer to use; we use RMSprop because it works about as well as Adam and is more memory-efficient
 optimizer: RMSprop
@@ -81,7 +81,7 @@ optimizer: RMSprop
 warmup_steps: 0
 
 # whether or not to use activation/gradient checkpointing
-activation_checkpointing: false
+activation_checkpointing: true
 
 # evaluate and save model every eval_every steps
 eval_every: 10000
@@ -93,7 +93,7 @@ minimum_log_interval_secs: 1.0
 save_every: 50000
 
 # data sampled from to be used for constructing preferences in DPO
-sampled_data_dir: None
+sampled_data_dir: null
 
 defaults:
 - _self_
