@@ -159,6 +159,7 @@ class BasicTrainer(object):
             max_length=config.max_length,
             max_prompt_length=config.max_prompt_length,
             sft_mode=config.loss.name == 'sft',
+            sampled_data_dir=config.sampled_data_dir,
         )
 
         self.policy = policy
@@ -225,6 +226,9 @@ class BasicTrainer(object):
 
             losses, chosen_rewards, rejected_rewards = dpo_loss(
                 policy_chosen_logps, policy_rejected_logps, reference_chosen_logps, reference_rejected_logps, beta=loss_config.beta, reference_free=loss_config.reference_free)
+            if loss_config.sft_reg > 0.0:
+                losses -= loss_config.sft_reg * policy_chosen_logps
+ 
             reward_accuracies = (chosen_rewards > rejected_rewards).float()
 
             chosen_rewards = all_gather_if_needed(chosen_rewards, self.rank, self.world_size)
@@ -242,19 +246,21 @@ class BasicTrainer(object):
         elif loss_config.name == 'sft':
             policy_chosen_logits = self.policy(batch['chosen_input_ids'], attention_mask=batch['chosen_attention_mask']).logits.to(torch.float32)
             policy_chosen_logps = _get_batch_logps(policy_chosen_logits, batch['chosen_labels'], average_log_prob=False)
-            policy_chosen_ppl = _get_batch_logps(policy_chosen_logits, batch['chosen_labels'], average_log_prob=True)
 
+            policy_chosen_ppl = _get_batch_logps(policy_chosen_logits, batch['chosen_labels'], average_log_prob=True)
+            policy_chosen_ppl = all_gather_if_needed(policy_chosen_ppl.detach(), self.rank, self.world_size)
+            metrics[f'ppl_{train_test}/chosen'] = policy_chosen_ppl.cpu().numpy().tolist()
+            
             losses = -policy_chosen_logps
 
         policy_chosen_logps = all_gather_if_needed(policy_chosen_logps.detach(), self.rank, self.world_size)
-        policy_chosen_ppl = all_gather_if_needed(policy_chosen_ppl.detach(), self.rank, self.world_size)
         metrics[f'logps_{train_test}/chosen'] = policy_chosen_logps.cpu().numpy().tolist()
-        metrics[f'ppl_{train_test}/chosen'] = policy_chosen_ppl.cpu().numpy().tolist()
 
         all_devices_losses = all_gather_if_needed(losses.detach(), self.rank, self.world_size)
         metrics[f'loss/{train_test}'] = all_devices_losses.cpu().numpy().tolist()
 
         return losses.mean(), metrics
+
 
     def train(self):
         """Begin either SFT or DPO training, with periodic evaluation."""
@@ -273,7 +279,7 @@ class BasicTrainer(object):
         self.example_counter = 0
         self.batch_counter = 0
         last_log = None
-
+        next_save = self.config.save_every
         for batch in self.train_iterator:
             #### BEGIN EVALUATION ####
             if self.example_counter % self.config.eval_every == 0 and (self.example_counter > 0 or self.config.do_first_eval):
@@ -333,15 +339,18 @@ class BasicTrainer(object):
                         wandb.log({"policy_samples": policy_text_table}, step=self.example_counter)
                         if self.config.loss.name == 'dpo':
                             wandb.log({"reference_samples": reference_text_table}, step=self.example_counter)
-
-                if self.example_counter > 0 and self.example_counter % self.config.save_models == 0:
-                    if self.config.debug:
-                        rank0_print('skipping save in debug mode')
-                    else:
-                        output_dir = os.path.join(self.run_dir, f'step-{self.example_counter}')
-                        rank0_print(f'creating checkpoint to write to {output_dir}...')
-                        self.save(output_dir, mean_eval_metrics)
             #### END EVALUATION ####
+
+            #### BEGIN SAVING ####
+            if self.example_counter >= next_save:
+                if self.config.debug:
+                    rank0_print('skipping save in debug mode')
+                else:
+                    output_dir = os.path.join(self.run_dir, f'step-{self.example_counter}')
+                    rank0_print(f'creating checkpoint to write to {output_dir}...')
+                    self.save(output_dir, mean_eval_metrics)
+                next_save += self.config.save_every
+            #### END SAVING ####
 
             #### BEGIN TRAINING ####
             self.policy.train()

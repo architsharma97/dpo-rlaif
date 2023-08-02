@@ -163,14 +163,14 @@ def get_hh(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str,
     return data
 
 
-def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
+def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sampled_data_dir: str = None) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
     """Load the ShareGPT dataset (needs to be local json file).
 
        The dataset is converted to a dictionary with the following structure:
        {
            'prompt1': {
-               'responses': [],
-               'pairs': [],
+               'responses': [str],
+               'pairs': [(int, int)],
                'sft_target': str
            },
            'prompt2': {
@@ -181,8 +181,8 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None) -> Dic
        Prompts will be structured as follows:
          \n\nHuman: <prompt>\n\nAssistant:
        Multiple turns are allowed, but the prompt should always start with \n\nHuman: and end with \n\nAssistant:.
-
-       Only SFT targets are available.
+       
+       Preferences are created by sampling Llama-7B on the ShareGPT prompts, using just the base-model.
     """
     print(f'Loading the ShareGPT dataset...')
     with open(os.path.join(cache_dir, 'sharegpt_data', 'ShareGPT_V3_unfiltered_cleaned_split_no_imsorry.json')) as f:
@@ -197,9 +197,23 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None) -> Dic
                     return True
         return False
 
+    # get sampled generations from the model being fine-tuned to form preference tuples
+    sampled_responses = {}
+    if sampled_data_dir is not None:
+        all_files = os.listdir(sampled_data_dir)
+        for file in all_files:
+            with open(os.path.join(sampled_data_dir, file)) as f:
+                segment = json.load(f)
+            for k, v in segment.items():
+                if k in sampled_responses:
+                    sampled_responses[k].extend(v)
+                else:
+                    sampled_responses[k] = v
+
     # NOTE: we only use the first two turns of the conversation
-    NUM_TURNS = 2
+    NUM_TURNS = 5
     data = defaultdict(lambda: defaultdict(list))
+    prompt_not_found_counter = 0
     for row in tqdm.tqdm(dataset, desc='Processing shareGPT', disable=silent):
         if _filter_conversation(row):
             print('filtered out', row['conversations'])
@@ -218,12 +232,25 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None) -> Dic
                 if entry['from'] == 'human':
                     prompt += entry['value'] + '\n\nAssistant: '
                 elif entry['from'] == 'gpt':
-                    data[prompt]['sft_target'] = entry['value']
-                    data[prompt]['pairs'] = []
-                    data[prompt]['responses'] = []
+                    prompt_key = prompt[:-1] # remove the space at the end
+                    if sampled_data_dir is not None and prompt in sampled_responses:
+                        assert prompt in sampled_responses, f"Prompt '{prompt}' not found in sampled responses"
+                        data[prompt]['sft_target'] = entry['value']
+                        cur_sampled_responses = list(set(sampled_responses[prompt]))
+                        data[prompt]['responses'] = [entry['value']] + cur_sampled_responses
+                        data[prompt]['pairs'] = [(0, i + 1) for i in range(len(cur_sampled_responses))]
+                    elif sampled_data_dir is None:
+                        data[prompt]['sft_target'] = entry['value']
+                        data[prompt]['pairs'] = []
+                        data[prompt]['responses'] = []
+                    else:
+                        prompt_not_found_counter += 1
                     prompt += entry['value'] + '\n\nHuman: '
 
-    print(f'Created a SFT dataset with {len(data)} prompts from ShareGPT')
+    if prompt_not_found_counter > 0:
+        print(f'Prompt not found for {prompt_not_found_counter} prompts\n\n')
+
+    print(f'Created a dataset with {len(data)} prompts from ShareGPT')
     return data
 
 
@@ -296,7 +323,7 @@ def get_alpaca_eval(split: str, silent: bool = False, cache_dir: str = None) -> 
     return data
 
 
-def get_dataset(name: str, split: str, silent: bool = False, cache_dir: str = None):
+def get_dataset(name: str, split: str, silent: bool = False, cache_dir: str = None, **kwargs):
     """Load the given dataset by name. Supported by default are 'shp', 'hh', and 'se'."""
     if name == 'shp':
         data = get_shp(split, silent=silent, cache_dir=cache_dir)
@@ -307,7 +334,7 @@ def get_dataset(name: str, split: str, silent: bool = False, cache_dir: str = No
     elif name == 'wiki':
         data = get_wikitext(split, silent=silent, cache_dir=cache_dir)
     elif name == 'sharegpt':
-        data = get_sharegpt(split, silent=silent, cache_dir=cache_dir)
+        data = get_sharegpt(split, silent=silent, cache_dir=cache_dir, **kwargs)
     elif name == 'alpaca_eval':
         data = get_alpaca_eval(split, silent=silent, cache_dir=cache_dir)
     else:
@@ -432,7 +459,8 @@ def get_batch_iterator(names: List[str],
                        n_examples: Optional[int] = None,
                        seed:int = 0,
                        silent: bool = False,
-                       cache_dir: Optional[str] = None) -> Iterator[Dict]:
+                       cache_dir: Optional[str] = None,
+                       **kwargs) -> Iterator[Dict]:
     """Get an iterator over batches of data. Stops after n_epochs or n_examples, whichever comes first.
 
     Args:
@@ -460,7 +488,7 @@ def get_batch_iterator(names: List[str],
         flat_data = []
         for name in names:
             truncation_mode = 'keep_end' if name in ['hh', 'sharegpt'] else 'keep_start'
-            for prompt, data in get_dataset(name, split, silent=silent, cache_dir=cache_dir).items():
+            for prompt, data in get_dataset(name, split, silent=silent, cache_dir=cache_dir, **kwargs).items():
                 flat_data.append((prompt, data['responses'], data['pairs'], data['sft_target'], truncation_mode))
 
     collate_fn = get_collate_fn(tokenizer)
@@ -474,7 +502,7 @@ def get_batch_iterator(names: List[str],
                 print(f'Finished generating {n_epochs} epochs on {split} split')
             break
         if shuffle:
-            with TemporarilySeededRandom(next(permutation_seeds)):
+            with TemporarilySeededRandom(int(next(permutation_seeds))):
                 random.shuffle(flat_data)
 
         batch = []

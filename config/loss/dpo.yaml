@@ -2,8 +2,11 @@
 name: dpo
 
 # the temperature parameter for DPO; lower values mean we care less about
-#   the reference model
+# the reference model
 beta: ???
+
+# regularize DPO with SFT loss
+sft_reg: 0.0
 
 # if true, use a uniform (maximum entropy) reference model
 reference_free: false

@@ -1,9 +1,7 @@
 import transformers
 from preference_datasets import get_batch_iterator
-import datasets
 
 import torch
-import tqdm
 
 import os
 import json
@@ -15,7 +13,7 @@ def dump_files():
     if args.prompt_set == 'alpaca_eval':
         def _process_instruction(instruction):
             return instruction[len('Human: '):-len('\n\nAssistant: ')]
-    
+
         def _process_output(o):
             return o.strip(' ')
 
@@ -73,12 +71,17 @@ if __name__ == '__main__':
     elif args.prompt_set == 'sharegpt':
         max_length = 512
         max_prompt_length = 256
-        chunk_size = 8
-        output_dir = os.path.join(args.cache_dir, args.model_name + '_samples', f'sharegpt2turn_noeos_nsamples{args.num_samples_per_prefix}_maxlen{max_length}')
+        chunk_size = 32
+        assert len(temps) == 1
+        sample_folder_name = f'sharegpt2turn_noeos_maxlen{max_length}_temp{temps[0]}'
+        if args.archive is not None:
+            output_dir = os.path.join(args.archive, sample_folder_name)
+        else:
+            output_dir = os.path.join(args.cache_dir, args.model_name + '_samples', sample_folder_name)
         os.makedirs(output_dir, exist_ok=True)
 
         for temp in temps:
-            all_models[temp] = os.path.join(output_dir, f'fastforward{args.ff}_temp{temp}.json')
+            all_models[temp] = os.path.join(output_dir, f'fastforward{args.ff}.json')
 
     for temp in temps:
         print(f'generating samples for at temperature {temp}')
@@ -103,19 +106,23 @@ if __name__ == '__main__':
             if batch_idx * chunk_size < args.ff:
                 continue
 
-            cur_input = {'input_ids': batch['prompt_input_ids'].to('cuda'),
-                         'attention_mask': batch['prompt_attention_mask'].to('cuda')}
+            generator_input = {'input_ids': batch['prompt_input_ids'].to('cuda'),
+                               'attention_mask': batch['prompt_attention_mask'].to('cuda'),}
             for _ in range(args.num_samples_per_prefix):
                 with torch.no_grad():
                     if temp > 0.0:
-                        outputs = policy.generate(**cur_input, max_length=max_length, do_sample=True, top_p=0.9, temperature=temp, pad_token_id=tokenizer.pad_token_id)
+                        outputs = policy.generate(**generator_input, max_length=max_length, do_sample=True, top_p=0.9, temperature=temp, pad_token_id=tokenizer.pad_token_id)
                     else:
-                        outputs = policy.generate(**cur_input, max_length=max_length, do_sample=False, pad_token_id=tokenizer.pad_token_id)
+                        outputs = policy.generate(**generator_input, max_length=max_length, do_sample=False, pad_token_id=tokenizer.pad_token_id)
 
                 for idx, output in enumerate(outputs):
-                    cur_prompt = tokenizer.decode(cur_input['input_ids'][idx], skip_special_tokens=True)
+                    # cur_prompt -> complete prompt
+                    # cur_truncated_prompt -> truncated prompt
+                    # cur_truncated response is used for generation, cur_prompt is used for indexing in the json file
+                    cur_prompt = batch['prompt'][idx]
+                    cur_truncated_prompt = tokenizer.decode(generator_input['input_ids'][idx], skip_special_tokens=True)
                     cur_response = tokenizer.decode(output, skip_special_tokens=True)
-                    cur_response_only = cur_response[len(cur_prompt):]
+                    cur_response_only = cur_response[len(cur_truncated_prompt):].strip() # remove the space at the beginning of the response
                     if cur_prompt not in responses:
                         responses[cur_prompt] = [cur_response_only]
                     else:

@@ -57,10 +57,10 @@ gradient_accumulation_steps: 1
 max_grad_norm: 10.0
 
 # the maximum allowed length for an input (prompt + response)
-max_length: 512
+max_length: 2048
 
 # the maximum allowed length for a prompt
-max_prompt_length: 256
+max_prompt_length: 768
 
 # the number of epochs to train for; if null, must specify n_examples
 n_epochs: 5
@@ -90,7 +90,10 @@ eval_every: 10000
 minimum_log_interval_secs: 1.0
 
 # whether or not to save the model
-save_models: 50000
+save_every: 50000
+
+# data sampled from to be used for constructing preferences in DPO
+sampled_data_dir: None
 
 defaults:
 - _self_
