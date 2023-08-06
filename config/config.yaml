@@ -30,11 +30,12 @@ wandb:
 #   we will try each of these directories in order; if none exist,
 #   we will create the last one and use it
 local_dirs:
-  - /ebs/.cache
+  - /home/archit/.cache
+  - /ebs/.cache/
 
 # whether or not to generate samples during evaluation; disable for FSDP/TensorParallel
 #   is recommended, because they are slow
-sample_during_eval: true
+sample_during_eval: false
 
 # how many model samples to generate during evaluation
 n_eval_model_samples: 16

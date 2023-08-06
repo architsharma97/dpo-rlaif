@@ -319,7 +319,7 @@ def get_alpaca_eval(split: str, silent: bool = False, cache_dir: str = None) -> 
         data[prompt]['pairs'] = []
         data[prompt]['responses'] = []
 
-    print(f'Created a SFT dataset with {len(data)} prompts from ShareGPT')
+    print(f'Created a SFT dataset with {len(data)} prompts from AlpacaEval')
     return data
 
 
