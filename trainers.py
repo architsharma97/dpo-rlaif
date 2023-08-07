@@ -47,7 +47,8 @@ def dpo_loss(policy_chosen_logps: torch.FloatTensor,
              reference_chosen_logps: torch.FloatTensor,
              reference_rejected_logps: torch.FloatTensor,
              beta: float,
-             reference_free: bool = False) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+             reference_free: bool = False,
+             importance_correction: bool = False) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
     """Compute the DPO loss for a batch of policy and reference model log probabilities.
     
     Args:
@@ -72,6 +73,8 @@ def dpo_loss(policy_chosen_logps: torch.FloatTensor,
     logits = pi_logratios - ref_logratios
 
     losses = -F.logsigmoid(beta * logits)
+    if importance_correction:
+        losses = losses * (policy_rejected_logps - reference_rejected_logps).detach().exp()
     chosen_rewards = beta * (policy_chosen_logps - reference_chosen_logps).detach()
     rejected_rewards = beta * (policy_rejected_logps - reference_rejected_logps).detach()
 
@@ -160,6 +163,7 @@ class BasicTrainer(object):
             max_prompt_length=config.max_prompt_length,
             sft_mode=config.loss.name == 'sft',
             sampled_data_dir=config.sampled_data_dir,
+            num_turns=config.num_turns,
         )
 
         self.policy = policy
@@ -225,7 +229,10 @@ class BasicTrainer(object):
                 reference_chosen_logps, reference_rejected_logps = self.concatenated_forward(self.reference_model, batch)
 
             losses, chosen_rewards, rejected_rewards = dpo_loss(
-                policy_chosen_logps, policy_rejected_logps, reference_chosen_logps, reference_rejected_logps, beta=loss_config.beta, reference_free=loss_config.reference_free)
+                policy_chosen_logps, policy_rejected_logps, reference_chosen_logps,
+                reference_rejected_logps, beta=loss_config.beta, reference_free=loss_config.reference_free,
+                importance_correction=loss_config.importance_correction,)
+
             if loss_config.sft_reg > 0.0:
                 losses -= loss_config.sft_reg * policy_chosen_logps
  
@@ -242,6 +249,7 @@ class BasicTrainer(object):
 
             policy_rejected_logps = all_gather_if_needed(policy_rejected_logps.detach(), self.rank, self.world_size)
             metrics[f'logps_{train_test}/rejected'] = policy_rejected_logps.cpu().numpy().tolist()
+            metrics[f'importance_weights_{train_test}/rejected'] = torch.exp(policy_rejected_logps.detach() - reference_rejected_logps.detach()).cpu().numpy().tolist()
 
         elif loss_config.name == 'sft':
             policy_chosen_logits = self.policy(batch['chosen_input_ids'], attention_mask=batch['chosen_attention_mask']).logits.to(torch.float32)
@@ -250,7 +258,7 @@ class BasicTrainer(object):
             policy_chosen_ppl = _get_batch_logps(policy_chosen_logits, batch['chosen_labels'], average_log_prob=True)
             policy_chosen_ppl = all_gather_if_needed(policy_chosen_ppl.detach(), self.rank, self.world_size)
             metrics[f'ppl_{train_test}/chosen'] = policy_chosen_ppl.cpu().numpy().tolist()
-            
+
             losses = -policy_chosen_logps
 
         policy_chosen_logps = all_gather_if_needed(policy_chosen_logps.detach(), self.rank, self.world_size)

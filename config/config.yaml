@@ -58,22 +58,22 @@ gradient_accumulation_steps: 1
 max_grad_norm: 10.0
 
 # the maximum allowed length for an input (prompt + response)
-max_length: 2048
+max_length: 512
 
 # the maximum allowed length for a prompt
-max_prompt_length: 768
+max_prompt_length: 256
 
 # the number of epochs to train for; if null, must specify n_examples
-n_epochs: 5
+n_epochs: null
 
 # the number of examples to train for; if null, must specify n_epochs
-n_examples: null
+n_examples: 50000
 
 # the number of examples to evaluate on (and sample from, if sample_during_eval is true)
 n_eval_examples: 256
 
 # the trainer class to use (e.g. BasicTrainer, FSDPTrainer, TensorParallelTrainer)
-trainer: FSDPTrainer
+trainer: BasicTrainer
 
 # The optimizer to use; we use RMSprop because it works about as well as Adam and is more memory-efficient
 optimizer: RMSprop
@@ -82,7 +82,7 @@ optimizer: RMSprop
 warmup_steps: 0
 
 # whether or not to use activation/gradient checkpointing
-activation_checkpointing: true
+activation_checkpointing: false
 
 # evaluate and save model every eval_every steps
 eval_every: 10000
@@ -91,10 +91,13 @@ eval_every: 10000
 minimum_log_interval_secs: 1.0
 
 # whether or not to save the model
-save_every: 50000
+save_every: 2000
 
 # data sampled from to be used for constructing preferences in DPO
 sampled_data_dir: null
+
+# number of turns for the preference data
+num_turns: 2
 
 defaults:
 - _self_

@@ -8,5 +8,8 @@ beta: ???
 # regularize DPO with SFT loss
 sft_reg: 0.0
 
+# importance correction for rejected samples
+importance_correction: true
+
 # if true, use a uniform (maximum entropy) reference model
 reference_free: false

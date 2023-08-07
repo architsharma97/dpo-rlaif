@@ -163,7 +163,7 @@ def get_hh(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str,
     return data
 
 
-def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sampled_data_dir: str = None) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
+def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sampled_data_dir: str = None, num_turns: int = 2) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
     """Load the ShareGPT dataset (needs to be local json file).
 
        The dataset is converted to a dictionary with the following structure:
@@ -211,7 +211,7 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sample
                     sampled_responses[k] = v
 
     # NOTE: we only use the first two turns of the conversation
-    NUM_TURNS = 5
+    NUM_TURNS = num_turns
     data = defaultdict(lambda: defaultdict(list))
     prompt_not_found_counter = 0
     for row in tqdm.tqdm(dataset, desc='Processing shareGPT', disable=silent):
