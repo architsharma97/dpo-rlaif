@@ -30,7 +30,7 @@ wandb:
 #   we will try each of these directories in order; if none exist,
 #   we will create the last one and use it
 local_dirs:
-  - /ebs/.cache/
+  - /ebs/.cache
 
 # whether or not to generate samples during evaluation; disable for FSDP/TensorParallel
 #   is recommended, because they are slow
@@ -91,6 +91,9 @@ minimum_log_interval_secs: 1.0
 
 # whether or not to save the model
 save_every: 1000
+
+# trigger an alpaca eval in a different process everytime a checkpoint is saved
+trigger_alpaca_eval: true # always on the device 7; do not use for training
 
 # data sampled from to be used for constructing preferences in DPO
 sampled_data_dir: null

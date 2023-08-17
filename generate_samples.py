@@ -36,6 +36,9 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--ff', type=int, default=0)
     parser.add_argument('--cache_dir', type=str, default='/ebs/.cache/ubuntu/')
+    parser.add_argument('--max_length', type=int, default=512)
+    parser.add_argument('--max_prompt_length', type=int, default=256)
+    parser.add_argument('--chunk_size', type=int, default=32)
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -56,9 +59,9 @@ if __name__ == '__main__':
     all_models = {}
     temps = [float(t) for t in args.temperatures.split(',')]
     if args.prompt_set == 'alpaca_eval':
-        max_length = 512
-        max_prompt_length = 256
-        chunk_size = 32
+        max_length = args.max_length
+        max_prompt_length = args.max_prompt_length
+        chunk_size = args.chunk_size
         assert args.num_samples_per_prefix == 1
         if args.archive is not None:
             output_dir = args.archive
@@ -69,9 +72,9 @@ if __name__ == '__main__':
             all_models[temp] = os.path.join(output_dir, f'alpaca_eval_temp{temp}.json')
 
     elif args.prompt_set == 'sharegpt':
-        max_length = 512
-        max_prompt_length = 256
-        chunk_size = 32
+        max_length = args.max_length
+        max_prompt_length = args.max_prompt_length
+        chunk_size = args.chunk_size
         assert len(temps) == 1
         sample_folder_name = f'sharegpt2turn_noeos_maxlen{max_length}_temp{temps[0]}'
         if args.archive is not None:

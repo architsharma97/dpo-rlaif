@@ -39,6 +39,7 @@ from collections import defaultdict
 import time
 import json
 import functools
+import subprocess
 from typing import Optional, Dict, List, Union, Tuple
 
 
@@ -352,12 +353,22 @@ class BasicTrainer(object):
 
             #### BEGIN SAVING ####
             if self.example_counter >= next_save:
-                if self.config.debug:
+                if self.config.debug and False:
                     rank0_print('skipping save in debug mode')
                 else:
                     output_dir = os.path.join(self.run_dir, f'step-{self.example_counter}')
                     rank0_print(f'creating checkpoint to write to {output_dir}...')
                     self.save(output_dir, mean_eval_metrics)
+
+                    if self.config.trigger_alpaca_eval:
+                        rank0_print('triggering alpaca evaluation...')
+                        proc = subprocess.Popen(['/bin/bash',
+                                                 '/home/ubuntu/dpo-rlaif/eval_ckpt.sh', '7',
+                                                 f'{output_dir}', f'{self.config.exp_name}-step{self.example_counter}'],
+                                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                                 close_fds=True)
+                        print(f'started alpaca evaluation for step-{self.example_counter}in process {proc.pid}')
+    
                 next_save += self.config.save_every
             #### END SAVING ####
 
