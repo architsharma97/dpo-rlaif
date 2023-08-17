@@ -100,7 +100,7 @@ sampled_data_dir: null
 
 # configure the sharegpt dataset
 num_turns: 2
-data_fraction: 0.1
+data_fraction: 0.05
 
 defaults:
 - _self_
