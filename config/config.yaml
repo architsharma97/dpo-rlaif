@@ -90,7 +90,7 @@ eval_every: 10000
 minimum_log_interval_secs: 1.0
 
 # whether or not to save the model
-save_every: 1000
+save_every: 15000
 
 # trigger an alpaca eval in a different process everytime a checkpoint is saved
 trigger_alpaca_eval: true # always on the device 7; do not use for training
