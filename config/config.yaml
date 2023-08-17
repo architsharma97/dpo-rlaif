@@ -72,7 +72,7 @@ n_examples: null
 n_eval_examples: 256
 
 # the trainer class to use (e.g. BasicTrainer, FSDPTrainer, TensorParallelTrainer)
-trainer: FSDPTrainer
+trainer: BasicTrainer
 
 # The optimizer to use; we use RMSprop because it works about as well as Adam and is more memory-efficient
 optimizer: RMSprop
@@ -100,7 +100,7 @@ sampled_data_dir: null
 
 # configure the sharegpt dataset
 num_turns: 2
-data_fraction: 0.05
+data_fraction: 1.0
 
 defaults:
 - _self_
