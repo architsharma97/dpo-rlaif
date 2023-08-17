@@ -235,7 +235,6 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sample
                 if entry['from'] == 'human':
                     prompt += entry['value'] + '\n\nAssistant: '
                 elif entry['from'] == 'gpt':
-                    prompt_key = prompt[:-1] # remove the space at the end
                     if sampled_data_dir is not None and prompt in sampled_responses:
                         assert prompt in sampled_responses, f"Prompt '{prompt}' not found in sampled responses"
                         data[prompt]['sft_target'] = entry['value']
@@ -252,6 +251,15 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sample
 
     if prompt_not_found_counter > 0:
         print(f'Prompt not found for {prompt_not_found_counter} prompts\n\n')
+
+    all_prompts = list(data.keys())
+    test_set_size = 256
+    if split == 'train':
+        prompts_train = all_prompts[test_set_size:]
+        data = {k: v for k, v in data.items() if k in prompts_train}
+    if split == 'test':
+        prompts_test = all_prompts[:test_set_size]
+        data = {k: v for k, v in data.items() if k in prompts_test}
 
     print(f'Created a dataset with {len(data)} prompts from ShareGPT')
     return data
