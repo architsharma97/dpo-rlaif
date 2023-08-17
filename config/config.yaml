@@ -30,7 +30,6 @@ wandb:
 #   we will try each of these directories in order; if none exist,
 #   we will create the last one and use it
 local_dirs:
-  - /home/archit/.cache
   - /ebs/.cache/
 
 # whether or not to generate samples during evaluation; disable for FSDP/TensorParallel
@@ -64,16 +63,16 @@ max_length: 512
 max_prompt_length: 256
 
 # the number of epochs to train for; if null, must specify n_examples
-n_epochs: null
+n_epochs: 5
 
 # the number of examples to train for; if null, must specify n_epochs
-n_examples: 50000
+n_examples: null
 
 # the number of examples to evaluate on (and sample from, if sample_during_eval is true)
 n_eval_examples: 256
 
 # the trainer class to use (e.g. BasicTrainer, FSDPTrainer, TensorParallelTrainer)
-trainer: BasicTrainer
+trainer: FSDPTrainer
 
 # The optimizer to use; we use RMSprop because it works about as well as Adam and is more memory-efficient
 optimizer: RMSprop
@@ -91,13 +90,14 @@ eval_every: 10000
 minimum_log_interval_secs: 1.0
 
 # whether or not to save the model
-save_every: 2000
+save_every: 1000
 
 # data sampled from to be used for constructing preferences in DPO
 sampled_data_dir: null
 
-# number of turns for the preference data
+# configure the sharegpt dataset
 num_turns: 2
+data_fraction: 0.1
 
 defaults:
 - _self_

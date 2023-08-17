@@ -164,6 +164,7 @@ class BasicTrainer(object):
             sft_mode=config.loss.name == 'sft',
             sampled_data_dir=config.sampled_data_dir,
             num_turns=config.num_turns,
+            data_fraction=config.data_fraction,
         )
 
         self.policy = policy
