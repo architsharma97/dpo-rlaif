@@ -367,7 +367,7 @@ class BasicTrainer(object):
                                                  f'{output_dir}', f'{self.config.exp_name}-step{self.example_counter}'],
                                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                                  close_fds=True)
-                        print(f'started alpaca evaluation for step-{self.example_counter}in process {proc.pid}')
+                        print(f'started alpaca evaluation for step-{self.example_counter} in process {proc.pid}')
     
                 next_save += self.config.save_every
             #### END SAVING ####
