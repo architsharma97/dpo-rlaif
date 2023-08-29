@@ -63,16 +63,15 @@ max_length: 512
 max_prompt_length: 256
 
 # the number of epochs to train for; if null, must specify n_examples
-n_epochs: 5
+n_epochs: null
 
 # the number of examples to train for; if null, must specify n_epochs
-n_examples: null
-
+n_examples: 20000
 # the number of examples to evaluate on (and sample from, if sample_during_eval is true)
 n_eval_examples: 256
 
 # the trainer class to use (e.g. BasicTrainer, FSDPTrainer, TensorParallelTrainer)
-trainer: FSDPTrainer
+trainer: BasicTrainer
 
 # The optimizer to use; we use RMSprop because it works about as well as Adam and is more memory-efficient
 optimizer: RMSprop
@@ -90,10 +89,11 @@ eval_every: 2000
 minimum_log_interval_secs: 1.0
 
 # whether or not to save the model
-save_every: 100000000
+save_every: 5000
 
 # trigger an alpaca eval in a different process everytime a checkpoint is saved
-trigger_alpaca_eval: false # always on the device 7; do not use for training
+trigger_alpaca_eval: true
+eval_gpu: 6
 
 # data sampled from to be used for constructing preferences in DPO
 sampled_data_dir: null

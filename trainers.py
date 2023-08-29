@@ -361,16 +361,7 @@ class BasicTrainer(object):
                 else:
                     output_dir = os.path.join(self.run_dir, f'step-{self.example_counter}')
                     rank0_print(f'creating checkpoint to write to {output_dir}...')
-                    self.save(output_dir, mean_eval_metrics)
-
-                    if self.config.trigger_alpaca_eval and self.rank == 0:
-                        rank0_print('triggering alpaca evaluation...')
-                        proc = subprocess.Popen(['/bin/bash',
-                                                 '/home/ubuntu/dpo-rlaif/eval_ckpt.sh', '7',
-                                                 f'{output_dir}', f'{self.config.exp_name}-step{self.example_counter}'],
-                                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                                 close_fds=True)
-                        print(f'started alpaca evaluation for step-{self.example_counter} in process {proc.pid}')
+                    self.save(output_dir, mean_eval_metrics, run_alpaca_eval=self.config.trigger_alpaca_eval)
 
                 next_save += self.config.save_every
             #### END SAVING ####
@@ -439,8 +430,17 @@ class BasicTrainer(object):
             'metrics': metrics if metrics is not None else {},
         }, output_path)
 
+    def alpaca_eval(self, output_dir):
+        if self.rank == 0:
+            rank0_print('triggering alpaca evaluation...')
+            proc = subprocess.Popen(['/bin/bash',
+                                     '/home/ubuntu/dpo-rlaif/eval_ckpt.sh', str(self.config.eval_gpu),
+                                     f'{output_dir}', f'{self.config.exp_name}-step{self.example_counter}'],
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                     close_fds=True)
+            print(f'started alpaca evaluation for step-{self.example_counter} in process {proc.pid}')
 
-    def save(self, output_dir: Optional[str] = None, metrics: Optional[Dict] = None):
+    def save(self, output_dir: Optional[str] = None, metrics: Optional[Dict] = None, run_alpaca_eval: bool = False):
         """Save policy, optimizer, and scheduler state to disk."""
 
         policy_state_dict = self.policy.state_dict()
@@ -454,6 +454,8 @@ class BasicTrainer(object):
         scheduler_state_dict = self.scheduler.state_dict()
         self.write_state_dict(self.example_counter, scheduler_state_dict, metrics, 'scheduler.pt', output_dir)
 
+        if run_alpaca_eval:
+            self.alpaca_eval(output_dir)
 
 class FSDPTrainer(BasicTrainer):
     def __init__(self, policy: nn.Module, config: DictConfig, seed: int, run_dir: str, reference_model: Optional[nn.Module] = None, rank: int = 0, world_size: int = 1):

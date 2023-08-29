@@ -42,7 +42,7 @@ def worker_main(rank: int, world_size: int, config: DictConfig, policy: nn.Modul
     trainer = TrainerClass(policy, config, config.seed, config.local_run_dir, reference_model=reference_model, rank=rank, world_size=world_size)
 
     trainer.train()
-    trainer.save()
+    trainer.save(run_alpaca_eval=config.trigger_alpaca_eval)
 
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
