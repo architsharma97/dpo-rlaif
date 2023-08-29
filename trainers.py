@@ -430,7 +430,10 @@ class BasicTrainer(object):
             'metrics': metrics if metrics is not None else {},
         }, output_path)
 
-    def alpaca_eval(self, output_dir):
+    def alpaca_eval(self, output_dir: Optional[str] = None):
+        if output_dir is None:
+            output_dir = os.path.join(self.run_dir, f'LATEST')
+
         if self.rank == 0:
             rank0_print('triggering alpaca evaluation...')
             proc = subprocess.Popen(['/bin/bash',
