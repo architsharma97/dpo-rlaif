@@ -39,6 +39,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_length', type=int, default=512)
     parser.add_argument('--max_prompt_length', type=int, default=256)
     parser.add_argument('--chunk_size', type=int, default=32)
+    parser.add_argument('--data_fraction', type=float, default=1.0)
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -87,7 +88,7 @@ if __name__ == '__main__':
             all_models[temp] = os.path.join(output_dir, f'fastforward{args.ff}.json')
 
     for temp in temps:
-        print(f'generating samples for at temperature {temp}')
+        print(f'generating samples at temperature {temp}')
         policy.eval()
         policy.half()
         policy.to('cuda')
@@ -98,7 +99,7 @@ if __name__ == '__main__':
         elif args.prompt_set == 'sharegpt':
             prompt_iterator = get_batch_iterator(['sharegpt'], tokenizer=tokenizer, split='train', batch_size=chunk_size, sft_mode=True,
                                                  seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
-                                                 max_prompt_length=max_prompt_length, max_length=max_length)
+                                                 max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=args.data_fraction)
 
         responses = {}
         batch_idx = 0
