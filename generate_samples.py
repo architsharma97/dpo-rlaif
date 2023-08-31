@@ -97,7 +97,7 @@ if __name__ == '__main__':
                                                  seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
                                                  max_prompt_length=max_prompt_length, max_length=max_length)
         elif args.prompt_set == 'sharegpt':
-            prompt_iterator = get_batch_iterator(['sharegpt'], tokenizer=tokenizer, split='train', batch_size=chunk_size, sft_mode=True,
+            prompt_iterator = get_batch_iterator(['sharegpt'], tokenizer=tokenizer, split='combined', batch_size=chunk_size, sft_mode=True,
                                                  seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
                                                  max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=args.data_fraction)
 
