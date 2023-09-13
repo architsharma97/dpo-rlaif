@@ -254,6 +254,8 @@ class BasicTrainer(object):
 
             policy_rejected_logps = all_gather_if_needed(policy_rejected_logps.detach(), self.rank, self.world_size)
             metrics[f'logps_{train_test}/rejected'] = policy_rejected_logps.cpu().numpy().tolist()
+            metrics[f'logps_{train_test}/reference_chosen'] = reference_chosen_logps.cpu().numpy().tolist()
+            metrics[f'logps_{train_test}/reference_rejected'] = reference_rejected_logps.cpu().numpy().tolist()
             metrics[f'importance_weights_{train_test}/rejected'] = torch.exp(policy_rejected_logps.detach() - reference_rejected_logps.detach()).cpu().numpy().tolist()
 
         elif loss_config.name == 'sft':
@@ -527,7 +529,7 @@ class FSDPTrainer(BasicTrainer):
         """Clip the gradient norm of the parameters of an FSDP policy, gathering the gradients across all GPUs."""
         return self.policy.clip_grad_norm_(self.config.max_grad_norm).item()
     
-    def save(self, output_dir=None, metrics=None):
+    def save(self, output_dir=None, metrics=None, run_alpaca_eval: bool = False):
         """Save policy, optimizer, and scheduler state to disk, gathering from all processes and saving only on the rank 0 process."""
         save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
         with FSDP.state_dict_type(self.policy, StateDictType.FULL_STATE_DICT, state_dict_config=save_policy):
@@ -551,7 +553,9 @@ class FSDPTrainer(BasicTrainer):
             scheduler_state_dict = self.scheduler.state_dict()
             self.write_state_dict(self.example_counter, scheduler_state_dict, metrics, 'scheduler.pt', output_dir)
         dist.barrier()
-        
+
+        if run_alpaca_eval:
+            self.alpaca_eval(output_dir)
 
 class TensorParallelTrainer(BasicTrainer):
     def __init__(self, policy, config, seed, run_dir, reference_model=None, rank=0, world_size=1):

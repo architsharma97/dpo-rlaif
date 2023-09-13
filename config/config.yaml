@@ -57,7 +57,7 @@ gradient_accumulation_steps: 1
 max_grad_norm: 10.0
 
 # the maximum allowed length for an input (prompt + response)
-max_length: 512
+max_length: 1024
 
 # the maximum allowed length for a prompt
 max_prompt_length: 256

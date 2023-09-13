@@ -25,23 +25,7 @@ def dump_files():
         json.dump(json_out, f, indent=2)
     print('dumped to file')
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', type=str, default='llama7b')
-    parser.add_argument('--model_path', type=str, default='huggyllama/llama-7b')
-    parser.add_argument('--archive', type=str, default=None)
-    parser.add_argument('--num_samples_per_prefix', type=int, default=1)
-    parser.add_argument('--temperatures', type=str, default='0.7')
-    parser.add_argument('--prompt_set', type=str, default='sharegpt')
-    parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--ff', type=int, default=0)
-    parser.add_argument('--cache_dir', type=str, default='/ebs/.cache/ubuntu/')
-    parser.add_argument('--max_length', type=int, default=512)
-    parser.add_argument('--max_prompt_length', type=int, default=256)
-    parser.add_argument('--chunk_size', type=int, default=32)
-    parser.add_argument('--data_fraction', type=float, default=1.0)
-    args = parser.parse_args()
-
+def main():
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
@@ -99,7 +83,8 @@ if __name__ == '__main__':
         elif args.prompt_set == 'sharegpt':
             prompt_iterator = get_batch_iterator(['sharegpt'], tokenizer=tokenizer, split='combined', batch_size=chunk_size, sft_mode=True,
                                                  seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
-                                                 max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=args.data_fraction)
+                                                 max_prompt_length=max_prompt_length, max_length=max_length,
+                                                 num_turns=1, data_fraction=args.data_fraction)
 
         responses = {}
         batch_idx = 0
@@ -137,3 +122,22 @@ if __name__ == '__main__':
                 dump_files()
 
         dump_files()
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_name', type=str, default='llama7b')
+    parser.add_argument('--model_path', type=str, default='huggyllama/llama-7b')
+    parser.add_argument('--archive', type=str, default=None)
+    parser.add_argument('--num_samples_per_prefix', type=int, default=1)
+    parser.add_argument('--temperatures', type=str, default='0.7')
+    parser.add_argument('--prompt_set', type=str, default='sharegpt')
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--ff', type=int, default=0)
+    parser.add_argument('--cache_dir', type=str, default='/ebs/.cache/ubuntu/')
+    parser.add_argument('--max_length', type=int, default=1024)
+    parser.add_argument('--max_prompt_length', type=int, default=256)
+    parser.add_argument('--chunk_size', type=int, default=32)
+    parser.add_argument('--data_fraction', type=float, default=1.0)
+    args = parser.parse_args()
+
+    main()
