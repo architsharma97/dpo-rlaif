@@ -1,4 +1,3 @@
-# %%
 import json
 import os
 from preference_datasets import get_batch_iterator
