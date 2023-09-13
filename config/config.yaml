@@ -99,7 +99,7 @@ eval_gpu: 6
 sampled_data_dir: null
 
 # configure the sharegpt dataset
-num_turns: 2
+num_turns: 1
 data_fraction: 1.0
 
 defaults:

@@ -213,8 +213,7 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sample
                 else:
                     sampled_responses[k] = v
 
-    # NOTE: we only use the first two turns of the conversation
-    NUM_TURNS = num_turns
+    skip_chats_starting_with_assistant = True
     data = defaultdict(lambda: defaultdict(list))
     prompt_not_found_counter = 0
     for row in tqdm.tqdm(dataset, desc='Processing shareGPT', disable=silent):
@@ -225,11 +224,13 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sample
 
         # each entry gives multiple SFT targets
         prompt = ''
-        for entry in row['conversations'][:NUM_TURNS*2 + 1]:
+        for entry in row['conversations'][:num_turns*2 + 1]:
             if prompt == '':
                 if entry['from'] == 'human':
                     prompt = 'Human: ' + entry['value'] + '\n\nAssistant: '
                 elif entry['from'] == 'gpt':
+                    if skip_chats_starting_with_assistant:
+                        break
                     prompt = 'Assistant: ' + entry['value'] + '\n\nHuman: '
             else:
                 if entry['from'] == 'human':
