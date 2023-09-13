@@ -9,7 +9,7 @@ import random
 import numpy as np
 import argparse
 
-def dump_files():
+def dump_files(responses, all_models, temp):
     if args.prompt_set == 'alpaca_eval':
         def _process_instruction(instruction):
             return instruction[len('Human: '):-len('\n\nAssistant: ')]
@@ -119,9 +119,9 @@ def main():
 
             if batch_idx % 10 == 0:
                 print(f'finished generating {batch_idx * chunk_size} prompts')
-                dump_files()
+                dump_files(responses, all_models, temp)
 
-        dump_files()
+        dump_files(responses, all_models, temp)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
