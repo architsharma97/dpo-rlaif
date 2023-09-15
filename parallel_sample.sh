@@ -6,8 +6,8 @@ cd ~/dpo-rlaif
 model_ckpt_dir=$1
 temperature="${2:-1.0}"
 
-for i in {0..6}
+for i in {0..7}
 do
-    ff_idx=$(((i-0)*16000 + 5000))
+    ff_idx=$(((i-0)*6000 + 0))
     screen -dmS samp$i bash -c "conda run -n rlhf --no-capture-output CUDA_VISIBLE_DEVICES=$i python3 generate_samples.py --archive $model_ckpt_dir --temperatures $temperature --ff $ff_idx --data_fraction 1.0"
 done
