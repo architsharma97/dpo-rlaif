@@ -98,6 +98,9 @@ eval_gpu: 6
 # data sampled from to be used for constructing preferences in DPO
 sampled_data_dir: null
 
+# labeled preferences for RLAIF
+prefs_path: null
+
 # configure the sharegpt dataset
 num_turns: 1
 data_fraction: 1.0

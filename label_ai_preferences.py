@@ -10,7 +10,8 @@ def get_chatgpt_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.
     tokenizer.pad_token_id = tokenizer.eos_token_id
     prompt_iterator = get_batch_iterator(['sharegpt'], tokenizer=tokenizer, split='train', batch_size=1, sft_mode=True,
                                         seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
-                                        max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=data_fraction, num_turns=num_turns)
+                                        max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=data_fraction, num_turns=num_turns,
+                                        prefs_path=None, sampled_data_dir=None)
 
     chatgpt_instruction_truncoutput_pair = []
     instructions = []
@@ -20,7 +21,7 @@ def get_chatgpt_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.
         prompt_token_count = batch['prompt_input_ids'][0].shape[0]
         output = tokenizer.decode(batch['chosen_input_ids'][0][prompt_token_count:], skip_special_tokens=True)
         chatgpt_instruction_truncoutput_pair.append({'instruction': instruction,
-                                                    'output': output})
+                                                     'output': output})
         instructions.append(instruction)
 
     return chatgpt_instruction_truncoutput_pair, instructions
@@ -33,7 +34,7 @@ def process_llama_samples_from_dir(sample_folder):
         for instruction, sft_output in sft_outputs.items():
             instruction_trimmed = instruction[len('Human: '):-len('\n\nAssistant: ')]
             sft_instruction_truncoutput_pair.append({'instruction': instruction_trimmed,
-                                                    'output': sft_output[0]})
+                                                     'output': sft_output[0]})
             sft_instructions.append(instruction_trimmed)
     return sft_instruction_truncoutput_pair, sft_instructions
 
@@ -46,7 +47,7 @@ def match_instruction_outputs(instruct_out_1, instruction_set_1, instruct_out_2,
                                                 'output_2': instruct_out_2[instruction_set_2.index(instruction)]['output']})
     return matched_instruction_outputs
 
-def main(base_dir, model1_name, model2_name, max_length, data_fraction, max_num_comparisons):
+def main(base_dir, model1_name, model2_name, max_length, data_fraction, max_num_comparisons, llm='claude'):
     def _get_model_outputs_and_instructions(name):
         if name == 'chatgpt':
             return get_chatgpt_outputs(max_prompt_length=256, max_length=max_length, data_fraction=data_fraction, num_turns=1)
@@ -57,7 +58,7 @@ def main(base_dir, model1_name, model2_name, max_length, data_fraction, max_num_
     out2, inst2 = _get_model_outputs_and_instructions(model2_name)
     matched_instruction_outputs = match_instruction_outputs(out1, inst1, out2, inst2)
     comparison_name = f'{model1_name}_vs_{model2_name}'
-    comparison_folder = os.path.join(base_dir, 'comparisons', comparison_name)
+    comparison_folder = os.path.join(base_dir, f'comparisons_{llm}', comparison_name)
     os.makedirs(comparison_folder, exist_ok=True)
 
     model1_outputs = []
@@ -80,7 +81,7 @@ def main(base_dir, model1_name, model2_name, max_length, data_fraction, max_num_
     with open(model2_output_path, 'w') as f:
         json.dump(model2_outputs, f, indent=4)
 
-    alpaca_eval.evaluate(model_outputs=model1_output_path, annotators_config='claude', name=comparison_name, output_path=comparison_folder, reference_outputs=model2_output_path)
+    alpaca_eval.evaluate(model_outputs=model1_output_path, annotators_config=llm, name=comparison_name, output_path=comparison_folder, reference_outputs=model2_output_path)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -93,7 +94,8 @@ if __name__ == '__main__':
     parser.add_argument('--max_prompt_length', type=int, default=256)
     parser.add_argument('--num_turns', type=int, default=1)
     parser.add_argument('--data_fraction', type=float, default=1.0)
+    parser.add_argument('--llm', type=str, default='claude')
     args = parser.parse_args()
 
-    main(base_dir=args.base_dir, model1_name=args.model1_name, model2_name=args.model2_name, max_length=args.max_length, data_fraction=args.data_fraction, max_num_comparisons=args.max_num_comparisons)
-    
+    main(base_dir=args.base_dir, model1_name=args.model1_name, model2_name=args.model2_name, max_length=args.max_length, data_fraction=args.data_fraction, max_num_comparisons=args.max_num_comparisons,
+         llm=args.llm)

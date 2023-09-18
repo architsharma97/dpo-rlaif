@@ -9,7 +9,7 @@ beta: ???
 sft_reg: 0.0
 
 # importance correction for rejected samples
-importance_correction: true
+importance_correction: false
 
 # if true, use a uniform (maximum entropy) reference model
 reference_free: false

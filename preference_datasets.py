@@ -266,6 +266,37 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sample
     return data
 
 
+def get_sharegpt_aiprefs(split: str, silent: bool = False, cache_dir: str = None, prefs_path: str = None, data_fraction: float = 1.0) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
+    """Loads preference labels for sharegpt instructions from data dir.
+    """
+
+    with open(prefs_path) as f:
+        preference_dataset = json.load(f)
+    print('done')
+
+    num_instructions = len(preference_dataset)
+    preference_dataset = preference_dataset[:int(num_instructions * data_fraction)]
+
+    data = defaultdict(lambda: defaultdict(list))
+    for row in tqdm.tqdm(preference_dataset, desc='Processing shareGPT', disable=silent):
+        instruction = row['instruction']
+        prompt = 'Human: ' + instruction + '\n\nAssistant: '
+        data[prompt]['sft_target'] = row['output_1']
+        data[prompt]['responses'] = [row['output_1'], row['output_2']]
+        data[prompt]['pairs'] = [(0, 1)] if row['preference'] == 1 else [(1, 0)]
+
+    all_prompts = list(data.keys())
+    if split == 'train':
+        prompts_train = all_prompts[:]
+        data = {k: v for k, v in data.items() if k in prompts_train}
+    if split == 'test':
+        prompts_test = all_prompts[:128]
+        data = {k: v for k, v in data.items() if k in prompts_test}
+
+    print(f'Created a dataset with {len(data)} prompts from ShareGPT')
+    return data
+
+
 def get_wikitext(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
     """Load the WikiText dataset. Only returns SFT data.
 
@@ -346,7 +377,10 @@ def get_dataset(name: str, split: str, silent: bool = False, cache_dir: str = No
     elif name == 'wiki':
         data = get_wikitext(split, silent=silent, cache_dir=cache_dir)
     elif name == 'sharegpt':
-        data = get_sharegpt(split, silent=silent, cache_dir=cache_dir, **kwargs)
+        if kwargs['prefs_path'] is not None:
+            data = get_sharegpt_aiprefs(split, silent=silent, cache_dir=cache_dir, prefs_path=kwargs['prefs_path'], data_fraction=kwargs['data_fraction'])
+        else:
+            data = get_sharegpt(split, silent=silent, cache_dir=cache_dir, sampled_data_dir=kwargs['sampled_data_dir'], num_turns=kwargs['num_turns'], data_fraction=kwargs['data_fraction'])
     elif name == 'alpaca_eval':
         data = get_alpaca_eval(split, silent=silent, cache_dir=cache_dir)
     else:

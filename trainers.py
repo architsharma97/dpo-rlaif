@@ -164,6 +164,7 @@ class BasicTrainer(object):
             max_prompt_length=config.max_prompt_length,
             sft_mode=config.loss.name == 'sft',
             sampled_data_dir=config.sampled_data_dir,
+            prefs_path=config.prefs_path,
             num_turns=config.num_turns,
             data_fraction=config.data_fraction,
         )
