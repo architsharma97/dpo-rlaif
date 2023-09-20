@@ -286,7 +286,7 @@ def get_sharegpt_aiprefs(split: str, silent: bool = False, cache_dir: str = None
         data[prompt]['pairs'] = [(0, 1)] if row['preference'] == 1 else [(1, 0)]
 
     all_prompts = list(data.keys())
-    test_set_size = 244
+    test_set_size = 256
     if split == 'train':
         prompts_train = all_prompts[test_set_size:]
         data = {k: v for k, v in data.items() if k in prompts_train}
