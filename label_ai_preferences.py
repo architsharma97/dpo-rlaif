@@ -5,7 +5,7 @@ import transformers
 import alpaca_eval
 import argparse
 
-def get_chatgpt_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.0, num_turns=1):
+def get_chatgpt_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.0, num_turns=1, filter_out_fraction=0.):
     tokenizer = transformers.AutoTokenizer.from_pretrained('huggyllama/llama-7b', cache_dir=args.cache_dir)
     tokenizer.pad_token_id = tokenizer.eos_token_id
     prompt_iterator = get_batch_iterator(['sharegpt'], tokenizer=tokenizer, split='train', batch_size=1, sft_mode=True,
@@ -24,6 +24,15 @@ def get_chatgpt_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.
                                                      'output': output})
         instructions.append(instruction)
 
+    if filter_out_fraction > 0.:
+        assert filter_out_fraction in [0.01, 0.05, 0.1]
+        filter_fraction_to_num_instructions = {0.01: 305, 0.05: 2568, 0.1: 5314}
+        print(f'Filtering out {filter_out_fraction} of instructions, which is {filter_fraction_to_num_instructions[filter_out_fraction]} instructions')
+        num_instructions_to_filter = int(filter_fraction_to_num_instructions[filter_out_fraction])
+        instructions = instructions[num_instructions_to_filter:]
+        chatgpt_instruction_truncoutput_pair = chatgpt_instruction_truncoutput_pair[num_instructions_to_filter:]
+
+    print(f'Number of instructions: {len(instructions)}')
     return chatgpt_instruction_truncoutput_pair, instructions
 
 def process_llama_samples_from_dir(sample_folder):
@@ -33,6 +42,8 @@ def process_llama_samples_from_dir(sample_folder):
         sft_outputs = json.load(open(os.path.join(sample_folder, sample_file), 'r'))
         for instruction, sft_output in sft_outputs.items():
             instruction_trimmed = instruction[len('Human: '):-len('\n\nAssistant: ')]
+            if instruction_trimmed in sft_instructions:
+                continue
             sft_instruction_truncoutput_pair.append({'instruction': instruction_trimmed,
                                                      'output': sft_output[0]})
             sft_instructions.append(instruction_trimmed)
@@ -47,16 +58,18 @@ def match_instruction_outputs(instruct_out_1, instruction_set_1, instruct_out_2,
                                                 'output_2': instruct_out_2[instruction_set_2.index(instruction)]['output']})
     return matched_instruction_outputs
 
-def main(base_dir, model1_name, model2_name, max_length, data_fraction, max_num_comparisons, llm='claude'):
+def main(base_dir, model1_name, model2_name, max_length, data_fraction, max_num_comparisons, llm='claude', filter_out_fraction=0.):
     def _get_model_outputs_and_instructions(name):
         if name == 'chatgpt':
-            return get_chatgpt_outputs(max_prompt_length=256, max_length=max_length, data_fraction=data_fraction, num_turns=1)
+            return get_chatgpt_outputs(max_prompt_length=256, max_length=max_length, data_fraction=data_fraction, num_turns=1, filter_out_fraction=filter_out_fraction)
         else:
             return process_llama_samples_from_dir(os.path.join(base_dir, f'sharegpt2turn_noeos_maxlen{max_length}_{name}'))
 
     out1, inst1 = _get_model_outputs_and_instructions(model1_name)
     out2, inst2 = _get_model_outputs_and_instructions(model2_name)
     matched_instruction_outputs = match_instruction_outputs(out1, inst1, out2, inst2)
+    print(f'Number of matched instructions: {len(matched_instruction_outputs)}')
+
     comparison_name = f'{model1_name}_vs_{model2_name}'
     comparison_folder = os.path.join(base_dir, f'comparisons_{llm}', comparison_name)
     os.makedirs(comparison_folder, exist_ok=True)
@@ -95,7 +108,8 @@ if __name__ == '__main__':
     parser.add_argument('--num_turns', type=int, default=1)
     parser.add_argument('--data_fraction', type=float, default=1.0)
     parser.add_argument('--llm', type=str, default='claude')
+    parser.add_argument('--filter_out_fraction', type=float, default=0.)
     args = parser.parse_args()
 
     main(base_dir=args.base_dir, model1_name=args.model1_name, model2_name=args.model2_name, max_length=args.max_length, data_fraction=args.data_fraction, max_num_comparisons=args.max_num_comparisons,
-         llm=args.llm)
+         llm=args.llm, filter_out_fraction=args.filter_out_fraction)

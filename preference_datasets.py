@@ -286,11 +286,12 @@ def get_sharegpt_aiprefs(split: str, silent: bool = False, cache_dir: str = None
         data[prompt]['pairs'] = [(0, 1)] if row['preference'] == 1 else [(1, 0)]
 
     all_prompts = list(data.keys())
+    test_set_size = 244
     if split == 'train':
-        prompts_train = all_prompts[:]
+        prompts_train = all_prompts[test_set_size:]
         data = {k: v for k, v in data.items() if k in prompts_train}
     if split == 'test':
-        prompts_test = all_prompts[:128]
+        prompts_test = all_prompts[:test_set_size]
         data = {k: v for k, v in data.items() if k in prompts_test}
 
     print(f'Created a dataset with {len(data)} prompts from ShareGPT')

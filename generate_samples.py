@@ -84,7 +84,7 @@ def main():
             prompt_iterator = get_batch_iterator(['sharegpt'], tokenizer=tokenizer, split='combined', batch_size=chunk_size, sft_mode=True,
                                                  seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
                                                  max_prompt_length=max_prompt_length, max_length=max_length,
-                                                 num_turns=1, data_fraction=args.data_fraction)
+                                                 num_turns=1, data_fraction=args.data_fraction, prefs_path=None, sampled_data_dir=None)
 
         responses = {}
         batch_idx = 0
