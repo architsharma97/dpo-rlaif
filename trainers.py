@@ -19,7 +19,7 @@ from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 import tensor_parallel as tp
 import contextlib
 
-from preference_datasets import get_batch_iterator
+from preference_datasets import get_batch_iterator, get_dataset
 from utils import (
     slice_and_move_batch_for_device,
     formatted_dict,
@@ -140,7 +140,7 @@ def concatenated_inputs(batch: Dict[str, Union[List, torch.LongTensor]]) -> Dict
 class BasicTrainer(object):
     def __init__(self, policy: nn.Module, config: DictConfig, seed: int, run_dir: str, reference_model: Optional[nn.Module] = None, rank: int = 0, world_size: int = 1):
         """A trainer for a language model, supporting either SFT or DPO training.
-           
+
            If multiple GPUs are present, naively splits the model across them, effectively
            offering N times available memory, but without any parallel computation.
         """
@@ -163,7 +163,6 @@ class BasicTrainer(object):
             max_length=config.max_length,
             max_prompt_length=config.max_prompt_length,
             sft_mode=config.loss.name == 'sft',
-            sampled_data_dir=config.sampled_data_dir,
             prefs_path=config.prefs_path,
             num_turns=config.num_turns,
             data_fraction=config.data_fraction,
@@ -171,12 +170,14 @@ class BasicTrainer(object):
 
         self.policy = policy
         self.reference_model = reference_model
+        self._cache_dir = get_local_dir(config.local_dirs)
 
-        self.train_iterator = get_batch_iterator(**data_iterator_kwargs, split='train', n_epochs=config.n_epochs, n_examples=config.n_examples, batch_size=config.batch_size, silent=rank != 0, cache_dir=get_local_dir(config.local_dirs))
+        self.train_iterator = get_batch_iterator(**data_iterator_kwargs, split='train', n_epochs=config.n_epochs, n_examples=config.n_examples, batch_size=config.batch_size, silent=rank != 0, cache_dir=self._cache_dir)
         rank0_print(f'Loaded train data iterator')
-        self.eval_iterator = get_batch_iterator(**data_iterator_kwargs, split='test', n_examples=config.n_eval_examples, batch_size=config.eval_batch_size, silent=rank != 0, cache_dir=get_local_dir(config.local_dirs))
+        self.eval_iterator = get_batch_iterator(**data_iterator_kwargs, split='test', n_examples=config.n_eval_examples, batch_size=config.eval_batch_size, silent=rank != 0, cache_dir=self._cache_dir)
         self.eval_batches = list(self.eval_iterator)
         rank0_print(f'Loaded {len(self.eval_batches)} eval batches of size {config.eval_batch_size}')
+
 
     def get_batch_samples(self, batch: Dict[str, torch.LongTensor]) -> Tuple[str, str]:
         """Generate samples from the policy (and reference model, if doing DPO training) for the given batch of inputs."""
@@ -284,7 +285,7 @@ class BasicTrainer(object):
         rank0_print(f'Using {self.config.optimizer} optimizer')
         self.optimizer = getattr(torch.optim, self.config.optimizer)(self.policy.parameters(), lr=self.config.lr)
         self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda=lambda step: min(1.0, (step + 1) / (self.config.warmup_steps + 1)))
-    
+
         torch.manual_seed(self.seed)
         np.random.seed(self.seed)
         random.seed(self.seed)
@@ -295,7 +296,16 @@ class BasicTrainer(object):
         self.example_counter = 0
         self.batch_counter = 0
         last_log = None
-        next_save = self.config.save_every
+        if self.config.save_every.startswith('epoch'):
+            epoch_freq = int(self.config.save_every.split('_')[1])
+            # compute the number of examples per epoch: TODO(works for single dataset only)
+            all_data = get_dataset(self.config.datasets[0], cache_dir=self._cache_dir, split='train', prefs_path=self.config.prefs_path, num_turns=self.config.num_turns, data_fraction=self.config.data_fraction)
+            n_examples_per_epoch = (len(all_data) // self.config.batch_size) * self.config.batch_size
+            next_save = n_examples_per_epoch * epoch_freq
+        else:
+            next_save = self.config.save_every
+        print(f'Saving every {next_save} examples')
+
         for batch in self.train_iterator:
             #### BEGIN EVALUATION ####
             if self.example_counter % self.config.eval_every == 0 and (self.example_counter > 0 or self.config.do_first_eval):
@@ -357,18 +367,6 @@ class BasicTrainer(object):
                             wandb.log({"reference_samples": reference_text_table}, step=self.example_counter)
             #### END EVALUATION ####
 
-            #### BEGIN SAVING ####
-            if self.example_counter >= next_save:
-                if self.config.debug:
-                    rank0_print('skipping save in debug mode')
-                else:
-                    output_dir = os.path.join(self.run_dir, f'step-{self.example_counter}')
-                    rank0_print(f'creating checkpoint to write to {output_dir}...')
-                    self.save(output_dir, mean_eval_metrics, run_alpaca_eval=self.config.trigger_alpaca_eval)
-
-                next_save += self.config.save_every
-            #### END SAVING ####
-
             #### BEGIN TRAINING ####
             self.policy.train()
 
@@ -413,6 +411,20 @@ class BasicTrainer(object):
                 rank0_print(f'skipping logging after {self.example_counter} examples to avoid logging too frequently')
             #### END TRAINING ####
 
+            #### BEGIN SAVING ####
+            if self.example_counter >= next_save:
+                if self.config.debug:
+                    rank0_print('skipping save in debug mode')
+                else:
+                    if self.config.save_every.startswith('epoch'):
+                        output_dir = os.path.join(self.run_dir, f'epoch-{self.example_counter // n_examples_per_epoch}')
+                    else:
+                        output_dir = os.path.join(self.run_dir, f'step-{self.example_counter}')
+                    rank0_print(f'creating checkpoint to write to {output_dir}...')
+                    self.save(output_dir, mean_eval_metrics, run_alpaca_eval=self.config.trigger_alpaca_eval)
+
+                next_save += self.config.save_every
+            #### END SAVING ####
 
     def clip_gradient(self):
         """Clip the gradient norm of the parameters of a non-FSDP policy."""

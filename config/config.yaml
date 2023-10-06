@@ -5,7 +5,7 @@ seed: 0
 exp_name: ???
 
 # the batch size for training; for FSDP, the batch size per GPU is batch_size / (grad_accumulation_steps * num_gpus)
-batch_size: 1
+batch_size: 8
 
 # the batch size during evaluation and sampling, if enabled
 eval_batch_size: 16
@@ -46,7 +46,7 @@ do_first_eval: true
 local_run_dir: ${get_local_run_dir:${exp_name},${local_dirs}}
 
 # the learning rate
-lr: 1e-7
+lr: 1e-6
 
 # number of steps to accumulate over for each batch
 #   (e.g. if batch_size=4 and gradient_accumulation_steps=2, then we will
@@ -57,21 +57,21 @@ gradient_accumulation_steps: 1
 max_grad_norm: 10.0
 
 # the maximum allowed length for an input (prompt + response)
-max_length: 1024
+max_length: 512
 
 # the maximum allowed length for a prompt
 max_prompt_length: 256
 
 # the number of epochs to train for; if null, must specify n_examples
-n_epochs: null
+n_epochs: 9
 
 # the number of examples to train for; if null, must specify n_epochs
-n_examples: 20000
+n_examples: null
 # the number of examples to evaluate on (and sample from, if sample_during_eval is true)
-n_eval_examples: 256
+n_eval_examples: 64
 
 # the trainer class to use (e.g. BasicTrainer, FSDPTrainer, TensorParallelTrainer)
-trainer: BasicTrainer
+trainer: FSDPTrainer
 
 # The optimizer to use; we use RMSprop because it works about as well as Adam and is more memory-efficient
 optimizer: RMSprop
@@ -80,23 +80,20 @@ optimizer: RMSprop
 warmup_steps: 0
 
 # whether or not to use activation/gradient checkpointing
-activation_checkpointing: false
+activation_checkpointing: true
 
 # evaluate every eval_every steps
-eval_every: 2000
+eval_every: 5000
 
 # prevent wandb from logging more than once per minimum_log_interval_secs
 minimum_log_interval_secs: 1.0
 
 # whether or not to save the model
-save_every: 5000
+save_every: epoch_3
 
 # trigger an alpaca eval in a different process everytime a checkpoint is saved
-trigger_alpaca_eval: true
+trigger_alpaca_eval: false
 eval_gpu: 6
-
-# data sampled from to be used for constructing preferences in DPO
-sampled_data_dir: null
 
 # labeled preferences for RLAIF
 prefs_path: null
@@ -107,5 +104,5 @@ data_fraction: 1.0
 
 defaults:
 - _self_
-- model: blank_model_fp32 # basic model configuration
+- model: llama7b # basic model configuration
 - loss: sft # which loss function, either sft or dpo (specify loss.beta if using dpo)

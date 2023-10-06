@@ -42,7 +42,7 @@ def worker_main(rank: int, world_size: int, config: DictConfig, policy: nn.Modul
     trainer = TrainerClass(policy, config, config.seed, config.local_run_dir, reference_model=reference_model, rank=rank, world_size=world_size)
 
     trainer.train()
-    trainer.save(run_alpaca_eval=config.trigger_alpaca_eval)
+    # trainer.save(run_alpaca_eval=config.trigger_alpaca_eval)
 
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
@@ -70,7 +70,7 @@ def main(config: DictConfig):
     print('=' * 80)
     print(f'Writing to {socket.gethostname()}:{config.local_run_dir}')
     print('=' * 80)
- 
+
     os.environ['XDG_CACHE_HOME'] = get_local_dir(config.local_dirs)
     print('building policy')
     model_kwargs = {'device_map': 'balanced'} if config.trainer == 'BasicTrainer' else {}

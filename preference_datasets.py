@@ -163,7 +163,7 @@ def get_hh(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str,
     return data
 
 
-def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sampled_data_dir: str = None, num_turns: int = 2, data_fraction: float = 1.0) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
+def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, num_turns: int = 2, data_fraction: float = 1.0) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
     """Load the ShareGPT dataset (needs to be local json file).
 
        The dataset is converted to a dictionary with the following structure:
@@ -181,8 +181,6 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sample
        Prompts will be structured as follows:
          \n\nHuman: <prompt>\n\nAssistant:
        Multiple turns are allowed, but the prompt should always start with \n\nHuman: and end with \n\nAssistant:.
-       
-       Preferences are created by sampling Llama-7B on the ShareGPT prompts, using just the base-model.
     """
     print(f'Loading the ShareGPT dataset...')
     with open(os.path.join(cache_dir, 'sharegpt_data', 'ShareGPT_V3_unfiltered_cleaned_split_no_imsorry.json')) as f:
@@ -200,22 +198,8 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sample
     num_conversations = len(dataset)
     dataset = dataset[:int(num_conversations * data_fraction)]
 
-    # get sampled generations from the model being fine-tuned to form preference tuples
-    sampled_responses = {}
-    if sampled_data_dir is not None:
-        all_files = os.listdir(sampled_data_dir)
-        for file in all_files:
-            with open(os.path.join(sampled_data_dir, file)) as f:
-                segment = json.load(f)
-            for k, v in segment.items():
-                if k in sampled_responses:
-                    sampled_responses[k].extend(v)
-                else:
-                    sampled_responses[k] = v
-
     skip_chats_starting_with_assistant = True
     data = defaultdict(lambda: defaultdict(list))
-    prompt_not_found_counter = 0
     for row in tqdm.tqdm(dataset, desc='Processing shareGPT', disable=silent):
         if _filter_conversation(row):
             print('filtered out', row['conversations'])
@@ -236,30 +220,17 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, sample
                 if entry['from'] == 'human':
                     prompt += entry['value'] + '\n\nAssistant: '
                 elif entry['from'] == 'gpt':
-                    if sampled_data_dir is not None and prompt in sampled_responses:
-                        assert prompt in sampled_responses, f"Prompt '{prompt}' not found in sampled responses"
-                        data[prompt]['sft_target'] = entry['value']
-                        cur_sampled_responses = list(set(sampled_responses[prompt]))
-                        data[prompt]['responses'] = [entry['value']] + cur_sampled_responses
-                        data[prompt]['pairs'] = [(0, i + 1) for i in range(len(cur_sampled_responses))]
-                    elif sampled_data_dir is None:
-                        data[prompt]['sft_target'] = entry['value']
-                        data[prompt]['pairs'] = []
-                        data[prompt]['responses'] = []
-                    else:
-                        prompt_not_found_counter += 1
+                    data[prompt]['sft_target'] = entry['value']
+                    data[prompt]['pairs'] = []
+                    data[prompt]['responses'] = []
                     prompt += entry['value'] + '\n\nHuman: '
 
-    if prompt_not_found_counter > 0:
-        print(f'Prompt not found for {prompt_not_found_counter} prompts\n\n')
-
     all_prompts = list(data.keys())
-    test_set_size = 256
     if split == 'train':
-        prompts_train = all_prompts[test_set_size:]
+        prompts_train = all_prompts[:]
         data = {k: v for k, v in data.items() if k in prompts_train}
     if split == 'test':
-        prompts_test = all_prompts[:test_set_size]
+        prompts_test = all_prompts[:256] # also used in training, so not exactly a test set
         data = {k: v for k, v in data.items() if k in prompts_test}
 
     print(f'Created a dataset with {len(data)} prompts from ShareGPT')
@@ -286,12 +257,11 @@ def get_sharegpt_aiprefs(split: str, silent: bool = False, cache_dir: str = None
         data[prompt]['pairs'] = [(0, 1)] if row['preference'] == 1 else [(1, 0)]
 
     all_prompts = list(data.keys())
-    test_set_size = 256
     if split == 'train':
-        prompts_train = all_prompts[test_set_size:]
+        prompts_train = all_prompts[:]
         data = {k: v for k, v in data.items() if k in prompts_train}
     if split == 'test':
-        prompts_test = all_prompts[:test_set_size]
+        prompts_test = all_prompts[:256] # also used in the train set, so not exactly a test set
         data = {k: v for k, v in data.items() if k in prompts_test}
 
     print(f'Created a dataset with {len(data)} prompts from ShareGPT')
@@ -381,7 +351,7 @@ def get_dataset(name: str, split: str, silent: bool = False, cache_dir: str = No
         if kwargs['prefs_path'] is not None:
             data = get_sharegpt_aiprefs(split, silent=silent, cache_dir=cache_dir, prefs_path=kwargs['prefs_path'], data_fraction=kwargs['data_fraction'])
         else:
-            data = get_sharegpt(split, silent=silent, cache_dir=cache_dir, sampled_data_dir=kwargs['sampled_data_dir'], num_turns=kwargs['num_turns'], data_fraction=kwargs['data_fraction'])
+            data = get_sharegpt(split, silent=silent, cache_dir=cache_dir, num_turns=kwargs['num_turns'], data_fraction=kwargs['data_fraction'])
     elif name == 'alpaca_eval':
         data = get_alpaca_eval(split, silent=silent, cache_dir=cache_dir)
     else:
@@ -583,6 +553,7 @@ def get_batch_iterator(names: List[str],
                                 print(f'FINISHED {n_examples} EXAMPLES on {split} split')
                             done = True
                         batch = []
+
         if done:
             break
 
@@ -606,11 +577,11 @@ def strings_match_up_to_spaces(str_a: str, str_b: str) -> bool:
 
 if __name__ == '__main__':
     import transformers
-    cache_dir = '/dev/shm/.cache'
+    cache_dir = '/ebs/.cache'
     tokenizer = transformers.AutoTokenizer.from_pretrained('gpt2-xl', cache_dir=cache_dir)
     tokenizer.pad_token_id = tokenizer.eos_token_id
     iterator = get_batch_iterator(['wiki'], tokenizer=tokenizer, split='test', batch_size=1, sft_mode=True, seed=0, n_epochs=10, cache_dir=cache_dir)
-
+    import pdb; pdb.set_trace()
     for batch in iterator:
         print(batch)
         break
