@@ -296,7 +296,7 @@ class BasicTrainer(object):
         self.example_counter = 0
         self.batch_counter = 0
         last_log = None
-        if self.config.save_every.startswith('epoch'):
+        if type(self.config.save_every) == str and self.config.save_every.startswith('epoch'):
             epoch_freq = int(self.config.save_every.split('_')[1])
             # compute the number of examples per epoch: TODO(works for single dataset only)
             all_data = get_dataset(self.config.datasets[0], cache_dir=self._cache_dir, split='train', prefs_path=self.config.prefs_path, num_turns=self.config.num_turns, data_fraction=self.config.data_fraction)
@@ -416,14 +416,14 @@ class BasicTrainer(object):
                 if self.config.debug:
                     rank0_print('skipping save in debug mode')
                 else:
-                    if self.config.save_every.startswith('epoch'):
+                    if type(self.config.save_every) == str and self.config.save_every.startswith('epoch'):
                         output_dir = os.path.join(self.run_dir, f'epoch-{self.example_counter // n_examples_per_epoch}')
+                        next_save += n_examples_per_epoch * epoch_freq
                     else:
                         output_dir = os.path.join(self.run_dir, f'step-{self.example_counter}')
+                        next_save += self.config.save_every
                     rank0_print(f'creating checkpoint to write to {output_dir}...')
                     self.save(output_dir, mean_eval_metrics, run_alpaca_eval=self.config.trigger_alpaca_eval)
-
-                next_save += self.config.save_every
             #### END SAVING ####
 
     def clip_gradient(self):
