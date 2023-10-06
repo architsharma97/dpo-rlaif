@@ -134,7 +134,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--ff', type=int, default=0)
     parser.add_argument('--cache_dir', type=str, default='/ebs/.cache/ubuntu/')
-    parser.add_argument('--max_length', type=int, default=1024)
+    parser.add_argument('--max_length', type=int, default=512)
     parser.add_argument('--max_prompt_length', type=int, default=256)
     parser.add_argument('--chunk_size', type=int, default=32)
     parser.add_argument('--data_fraction', type=float, default=1.0)
