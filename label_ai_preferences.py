@@ -103,7 +103,7 @@ if __name__ == '__main__':
     parser.add_argument('--base_dir', type=str) # example: /ebs/.cache/ubuntu/sharegpt2turn_llama7b_sft_maxlen1024_2023-09-11_21-52-36_584206/step-10000/
     parser.add_argument('--cache_dir', type=str, default='/ebs/.cache/ubuntu/')
     parser.add_argument('--max_num_comparisons', type=int, default=200)
-    parser.add_argument('--max_length', type=int, default=1024)
+    parser.add_argument('--max_length', type=int, default=512)
     parser.add_argument('--max_prompt_length', type=int, default=256)
     parser.add_argument('--num_turns', type=int, default=1)
     parser.add_argument('--data_fraction', type=float, default=1.0)
