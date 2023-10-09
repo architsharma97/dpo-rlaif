@@ -1,6 +1,6 @@
 import json
 import os
-from preference_datasets import get_batch_iterator
+from preference_datasets import get_batch_iterator, get_dataset
 import transformers
 import alpaca_eval
 import argparse
@@ -9,9 +9,9 @@ def get_chatgpt_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.
     tokenizer = transformers.AutoTokenizer.from_pretrained('huggyllama/llama-7b', cache_dir=args.cache_dir)
     tokenizer.pad_token_id = tokenizer.eos_token_id
     prompt_iterator = get_batch_iterator(['sharegpt'], tokenizer=tokenizer, split='train', batch_size=1, sft_mode=True,
-                                        seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
-                                        max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=data_fraction, num_turns=num_turns,
-                                        prefs_path=None, sampled_data_dir=None)
+                                         seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
+                                         max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=data_fraction, num_turns=num_turns,
+                                         prefs_path=None, sampled_data_dir=None)
 
     chatgpt_instruction_truncoutput_pair = []
     instructions = []
@@ -25,10 +25,15 @@ def get_chatgpt_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.
         instructions.append(instruction)
 
     if filter_out_fraction > 0.:
-        assert filter_out_fraction in [0.01, 0.05, 0.1]
-        filter_fraction_to_num_instructions = {0.01: 305, 0.05: 2568, 0.1: 5314}
-        print(f'Filtering out {filter_out_fraction} of instructions, which is {filter_fraction_to_num_instructions[filter_out_fraction]} instructions')
-        num_instructions_to_filter = int(filter_fraction_to_num_instructions[filter_out_fraction])
+        # alternate way that is more correct if there are eval sets or anything as such
+        # prompt_iterator = get_batch_iterator(['sharegpt'], tokenizer=tokenizer, split='train', batch_size=1, sft_mode=True,
+        #                                      seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
+        #                                      max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=filter_out_fraction, num_turns=num_turns,
+        #                                      prefs_path=None, sampled_data_dir=None)
+        # num_instructions_to_filter = len([batch for batch in prompt_iterator])
+        all_data = get_dataset('sharegpt', cache_dir=args.cache_dir, split='train', prefs_path=None, num_turns=num_turns, data_fraction=filter_out_fraction)
+        num_instructions_to_filter = len(all_data)
+        print(f'Filtering out {filter_out_fraction} of instructions, which is {num_instructions_to_filter} instructions')
         instructions = instructions[num_instructions_to_filter:]
         chatgpt_instruction_truncoutput_pair = chatgpt_instruction_truncoutput_pair[num_instructions_to_filter:]
 
@@ -78,11 +83,11 @@ def main(base_dir, model1_name, model2_name, max_length, data_fraction, max_num_
     model2_outputs = []
     for idx, matched_instruction_output in enumerate(matched_instruction_outputs):
         model1_outputs.append({'instruction': matched_instruction_output['instruction'],
-                            'output': matched_instruction_output['output_1'],
-                            "generator": model1_name,})
+                               'output': matched_instruction_output['output_1'],
+                               'generator': model1_name,})
         model2_outputs.append({'instruction': matched_instruction_output['instruction'],
-                            'output': matched_instruction_output['output_2'],
-                            "generator": model2_name,})
+                               'output': matched_instruction_output['output_2'],
+                               'generator': model2_name,})
         if idx > max_num_comparisons:
             break
 
