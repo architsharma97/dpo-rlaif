@@ -47,7 +47,8 @@ def process_llama_samples_from_dir(sample_folder):
         sft_outputs = json.load(open(os.path.join(sample_folder, sample_file), 'r'))
         for instruction, sft_output in sft_outputs.items():
             instruction_trimmed = instruction[len('Human: '):-len('\n\nAssistant: ')]
-            if instruction_trimmed in sft_instructions:
+            # really long instructions exceed the context length for GPT-4
+            if instruction_trimmed in sft_instructions or len(instruction_trimmed.split()) >= 2000:
                 continue
             sft_instruction_truncoutput_pair.append({'instruction': instruction_trimmed,
                                                      'output': sft_output[0]})
