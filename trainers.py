@@ -254,7 +254,12 @@ class BasicTrainer(object):
             metrics[f'rewards_{train_test}/margins'] = (chosen_rewards - rejected_rewards).cpu().numpy().tolist()
             metrics[f'rewards_{train_test}/beta_normalized_margin'] = ((chosen_rewards - rejected_rewards) / loss_config.beta).cpu().numpy().tolist()
 
+            policy_chosen_logps = all_gather_if_needed(policy_chosen_logps.detach(), self.rank, self.world_size)
             policy_rejected_logps = all_gather_if_needed(policy_rejected_logps.detach(), self.rank, self.world_size)
+            reference_chosen_logps = all_gather_if_needed(reference_chosen_logps.detach(), self.rank, self.world_size)
+            reference_rejected_logps = all_gather_if_needed(reference_rejected_logps.detach(), self.rank, self.world_size)
+
+            metrics[f'logps_{train_test}/chosen'] = policy_chosen_logps.cpu().numpy().tolist()
             metrics[f'logps_{train_test}/rejected'] = policy_rejected_logps.cpu().numpy().tolist()
             metrics[f'logps_{train_test}/reference_chosen'] = reference_chosen_logps.cpu().numpy().tolist()
             metrics[f'logps_{train_test}/reference_rejected'] = reference_rejected_logps.cpu().numpy().tolist()
