@@ -43,16 +43,21 @@ def get_chatgpt_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.
 def process_llama_samples_from_dir(sample_folder):
     sft_instruction_truncoutput_pair = []
     sft_instructions = []
+    instructions_too_long = 0
     for sample_file in os.listdir(sample_folder):
         sft_outputs = json.load(open(os.path.join(sample_folder, sample_file), 'r'))
         for instruction, sft_output in sft_outputs.items():
             instruction_trimmed = instruction[len('Human: '):-len('\n\nAssistant: ')]
+            if instruction_trimmed in sft_instructions:
+                continue
             # really long instructions exceed the context length for GPT-4
-            if instruction_trimmed in sft_instructions or len(instruction_trimmed.split()) >= 2000:
+            if len(instruction_trimmed.split()) >= 2000 or len(instruction_trimmed) >= 8000:
+                instructions_too_long += 1
                 continue
             sft_instruction_truncoutput_pair.append({'instruction': instruction_trimmed,
                                                      'output': sft_output[0]})
             sft_instructions.append(instruction_trimmed)
+    print(f'skipped {instructions_too_long} instructions that were too long')
     return sft_instruction_truncoutput_pair, sft_instructions
 
 def match_instruction_outputs(instruct_out_1, instruction_set_1, instruct_out_2, instruction_set_2):
