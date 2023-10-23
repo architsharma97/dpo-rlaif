@@ -63,7 +63,7 @@ max_length: 512
 max_prompt_length: 256
 
 # the number of epochs to train for; if null, must specify n_examples
-n_epochs: 9
+n_epochs: 6
 
 # the number of examples to train for; if null, must specify n_epochs
 n_examples: null
@@ -89,7 +89,7 @@ eval_every: 5000
 minimum_log_interval_secs: 1.0
 
 # whether or not to save the model
-save_every: epoch_3
+save_every: epoch_2
 
 # trigger an alpaca eval in a different process everytime a checkpoint is saved
 trigger_alpaca_eval: false
