@@ -2,12 +2,13 @@
 cd ~/dpo-rlaif
 annotator="${4:-claude_2}"
 temperature="${5:-0.7}"
+model_name="${6:-llama7b}"
 
 echo $3 > $2/name.txt
 
 if [ ! -f $2"/alpaca_eval_temp$temperature.json" ]; then
     echo "generating samples" > $2/eval_log.txt
-    conda run -n rlhf --no-capture-output bash -c "CUDA_VISIBLE_DEVICES=$1 python3 generate_samples.py --archive $2 --prompt_set alpaca_eval --temperatures $temperature"
+    conda run -n rlhf --no-capture-output bash -c "CUDA_VISIBLE_DEVICES=$1 python3 generate_samples.py --archive $2 --prompt_set alpaca_eval --temperatures $temperature --model_name $model_name"
 fi
 
 echo "starting alpaca evaluation" > $2/eval_log.txt

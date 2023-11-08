@@ -30,8 +30,13 @@ def main():
     np.random.seed(args.seed)
     random.seed(args.seed)
     
-    policy = transformers.AutoModelForCausalLM.from_pretrained(args.model_path, cache_dir=args.cache_dir, device_map='balanced')
-    tokenizer = transformers.AutoTokenizer.from_pretrained(args.model_path, cache_dir=args.cache_dir)
+    if args.model_name == 'llama7b':
+        model_path = 'huggyllama/llama-7b'
+    elif args.model_name == 'mistral7b':
+        model_path = 'mistralai/Mistral-7B-v0.1'
+
+    policy = transformers.AutoModelForCausalLM.from_pretrained(model_path, cache_dir=args.cache_dir, device_map='balanced')
+    tokenizer = transformers.AutoTokenizer.from_pretrained(model_path, cache_dir=args.cache_dir)
     print(tokenizer)
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
@@ -126,7 +131,6 @@ def main():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default='llama7b')
-    parser.add_argument('--model_path', type=str, default='huggyllama/llama-7b')
     parser.add_argument('--archive', type=str, default=None)
     parser.add_argument('--num_samples_per_prefix', type=int, default=1)
     parser.add_argument('--temperatures', type=str, default='0.7')
