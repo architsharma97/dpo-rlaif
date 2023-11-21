@@ -40,6 +40,7 @@ def _cached_function(fn_to_cache, cache_dir='/ebs/.cache/ubuntu/gpt4_completions
 
     return wrapped
 
+
 def get_openai_completion(prompt,
                           cache=True,
                           model='gpt-4-0314',
@@ -56,6 +57,7 @@ def get_openai_completion(prompt,
         return c['choices'][0]['message']['content'], c['choices'][0]['finish_reason']
     else:
         return [c_['message']['content'] for c_ in c['choices']]
+
 
 def get_anthropic_completion(
     prompt: str,
@@ -122,14 +124,19 @@ if __name__ == '__main__':
         return instruction[len('Human: '):-len('\n\nAssistant: ')]
 
     def _dump_files(responses):
-        with open(os.path.join(args.base_output_dir, f'sharegpt1turn_df{args.data_fraction}_{args.ai_model}_completions.json'), 'w') as f:
+        with open(os.path.join(args.base_output_dir, f'sharegpt1turn_df{args.data_fraction}_ff{args.ff}_{args.ai_model}_completions.json'), 'w') as f:
             json.dump(responses, f, indent=2)
         print('Saved to file')
 
     responses = {}
     prompt_idx = 0
+    if args.ff > 0:
+        print(f'fastforwarding {args.ff} prompts')
+
     for batch in prompt_iterator:
         prompt_idx += 1
+        if prompt_idx < args.ff:
+            continue
         print(f'prompt_idx: {prompt_idx}')
         prompt = _get_prompt_from_sharegpt(batch['prompt'][0])
         if len(prompt.split()) >= 2000 or len(prompt) >= 8000:

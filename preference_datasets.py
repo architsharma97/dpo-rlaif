@@ -237,6 +237,57 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, num_tu
     return data
 
 
+def get_shareclaude(split: str, silent: bool = False, cache_dir: str = None, num_turns: int = 1, data_fraction: float = 1.0) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
+    """Load the ShareGPT dataset (needs to be local json file).
+
+       The dataset is converted to a dictionary with the following structure:
+       {
+           'prompt1': {
+               'responses': [str],
+               'pairs': [(int, int)],
+               'sft_target': str
+           },
+           'prompt2': {
+               ...
+           },
+       }
+
+       Prompts will be structured as follows:
+         \n\nHuman: <prompt>\n\nAssistant:
+       Multiple turns are allowed, but the prompt should always start with \n\nHuman: and end with \n\nAssistant:.
+    """
+    print(f'Loading the ShareClaude dataset...')
+    dataset = []
+    for file_name in os.listdir(os.path.join(cache_dir, 'sharegpt_data')):
+        if file_name.endswith('claude_completions.json'):
+            with open(os.path.join(cache_dir, 'sharegpt_data', file_name)) as f:
+                dataset.extend(list(json.load(f).items()))
+    print('done')
+
+    # dataset = list(set(dataset))
+    num_conversations = len(dataset)
+    dataset = dataset[:int(num_conversations * data_fraction)]
+
+    data = defaultdict(lambda: defaultdict(list))
+    for row in tqdm.tqdm(dataset, desc='Processing shareClaude', disable=silent):
+        # each entry gives multiple SFT targets
+        prompt = 'Human: ' + row[0] + '\n\nAssistant: '
+        data[prompt]['sft_target'] = row[1][0]
+        data[prompt]['pairs'] = []
+        data[prompt]['responses'] = []
+
+    all_prompts = list(data.keys())
+    if split == 'train':
+        prompts_train = all_prompts[:]
+        data = {k: v for k, v in data.items() if k in prompts_train}
+    if split == 'test':
+        prompts_test = all_prompts[:256] # also used in training, so not exactly a test set
+        data = {k: v for k, v in data.items() if k in prompts_test}
+
+    print(f'Created a dataset with {len(data)} prompts from Claude competions on ShareGPT')
+    return data
+
+
 def get_sharegpt_aiprefs(split: str, silent: bool = False, cache_dir: str = None, prefs_path: str = None, data_fraction: float = 1.0) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
     """Loads preference labels for sharegpt instructions from data dir.
     """
@@ -352,6 +403,8 @@ def get_dataset(name: str, split: str, silent: bool = False, cache_dir: str = No
             data = get_sharegpt_aiprefs(split, silent=silent, cache_dir=cache_dir, prefs_path=kwargs['prefs_path'], data_fraction=kwargs['data_fraction'])
         else:
             data = get_sharegpt(split, silent=silent, cache_dir=cache_dir, num_turns=kwargs['num_turns'], data_fraction=kwargs['data_fraction'])
+    elif name == 'shareclaude':
+        data = get_shareclaude(split, silent=silent, cache_dir=cache_dir, num_turns=kwargs['num_turns'], data_fraction=kwargs['data_fraction'])
     elif name == 'alpaca_eval':
         data = get_alpaca_eval(split, silent=silent, cache_dir=cache_dir)
     else:

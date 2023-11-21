@@ -5,10 +5,15 @@ import transformers
 import alpaca_eval
 import argparse
 
-def get_chatgpt_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.0, num_turns=1, filter_out_fraction=0.):
+def get_ai_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.0, num_turns=1, filter_out_fraction=0.,
+                   model='chatgpt'):
     tokenizer = transformers.AutoTokenizer.from_pretrained('huggyllama/llama-7b', cache_dir=args.cache_dir)
     tokenizer.pad_token_id = tokenizer.eos_token_id
-    prompt_iterator = get_batch_iterator(['sharegpt'], tokenizer=tokenizer, split='train', batch_size=1, sft_mode=True,
+    if model == 'chatgpt':
+        dataset_name = 'sharegpt'
+    elif model == 'claude':
+        dataset_name = 'shareclaude'
+    prompt_iterator = get_batch_iterator([dataset_name,], tokenizer=tokenizer, split='train', batch_size=1, sft_mode=True,
                                          seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
                                          max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=data_fraction, num_turns=num_turns,
                                          prefs_path=None, sampled_data_dir=None)
@@ -31,7 +36,7 @@ def get_chatgpt_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.
         #                                      max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=filter_out_fraction, num_turns=num_turns,
         #                                      prefs_path=None, sampled_data_dir=None)
         # num_instructions_to_filter = len([batch for batch in prompt_iterator])
-        all_data = get_dataset('sharegpt', cache_dir=args.cache_dir, split='train', prefs_path=None, num_turns=num_turns, data_fraction=filter_out_fraction)
+        all_data = get_dataset(dataset_name, cache_dir=args.cache_dir, split='train', prefs_path=None, num_turns=num_turns, data_fraction=filter_out_fraction)
         num_instructions_to_filter = len(all_data)
         print(f'Filtering out {filter_out_fraction} of instructions, which is {num_instructions_to_filter} instructions')
         instructions = instructions[num_instructions_to_filter:]
@@ -40,13 +45,13 @@ def get_chatgpt_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.
     print(f'Number of instructions: {len(instructions)}')
     return chatgpt_instruction_truncoutput_pair, instructions
 
-def process_llama_samples_from_dir(sample_folder, max_prompt_length=256, max_length=1024, num_turns=1, filter_out_fraction=0.):
+def process_llama_samples_from_dir(sample_folder, max_prompt_length=256, max_length=1024, num_turns=1, filter_out_fraction=0., model='chatgpt'):
     sft_instruction_truncoutput_pair = []
     sft_instructions = []
     instructions_too_long = 0
 
     if filter_out_fraction > 0.:
-        _, filtered_instructions = get_chatgpt_outputs(max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=1.0, num_turns=num_turns, filter_out_fraction=filter_out_fraction)
+        _, filtered_instructions = get_ai_outputs(max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=1.0, num_turns=num_turns, filter_out_fraction=filter_out_fraction, model=model)
 
     for sample_file in os.listdir(sample_folder):
         sft_outputs = json.load(open(os.path.join(sample_folder, sample_file), 'r'))
@@ -78,10 +83,12 @@ def match_instruction_outputs(instruct_out_1, instruction_set_1, instruct_out_2,
 
 def main(base_dir, model1_name, model2_name, max_length, data_fraction, max_num_comparisons, llm='claude', filter_out_fraction=0., out_folder_name=None):
     def _get_model_outputs_and_instructions(name):
-        if name == 'chatgpt':
-            return get_chatgpt_outputs(max_prompt_length=256, max_length=max_length, data_fraction=data_fraction, num_turns=1, filter_out_fraction=filter_out_fraction)
+        if name in ['chatgpt', 'claude']:
+            return get_ai_outputs(max_prompt_length=256, max_length=max_length, data_fraction=data_fraction, num_turns=1, filter_out_fraction=filter_out_fraction, model=name)
         else:
-            return process_llama_samples_from_dir(os.path.join(base_dir, f'sharegpt2turn_noeos_maxlen{max_length}_{name}'), max_prompt_length=256, max_length=max_length, num_turns=1, filter_out_fraction=filter_out_fraction)
+            return process_llama_samples_from_dir(os.path.join(base_dir, f'sharegpt2turn_noeos_maxlen{max_length}_{name}'),
+                                                  max_prompt_length=256, max_length=max_length, num_turns=1, filter_out_fraction=filter_out_fraction,
+                                                  model=model2_name)
 
     out1, inst1 = _get_model_outputs_and_instructions(model1_name)
     out2, inst2 = _get_model_outputs_and_instructions(model2_name)
