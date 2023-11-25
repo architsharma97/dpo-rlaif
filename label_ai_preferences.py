@@ -88,7 +88,7 @@ def main(base_dir, model1_name, model2_name, max_length, data_fraction, max_num_
         else:
             return process_llama_samples_from_dir(os.path.join(base_dir, f'sharegpt2turn_noeos_maxlen{max_length}_{name}'),
                                                   max_prompt_length=256, max_length=max_length, num_turns=1, filter_out_fraction=filter_out_fraction,
-                                                  model=model2_name)
+                                                  model='claude' if model2_name == 'claude' else 'chatgpt')
 
     out1, inst1 = _get_model_outputs_and_instructions(model1_name)
     out2, inst2 = _get_model_outputs_and_instructions(model2_name)
