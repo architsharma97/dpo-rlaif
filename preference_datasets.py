@@ -299,8 +299,20 @@ def get_sharegpt_aiprefs(split: str, silent: bool = False, cache_dir: str = None
     num_instructions = len(preference_dataset)
     preference_dataset = preference_dataset[:int(num_instructions * data_fraction)]
 
+    filter_set = ['<s>', '</s>']
+    def _filter_conversation(conv):
+        for f in filter_set:
+            if f in row['instruction'] or f in row['output_1'] or f in row['output_2']:
+                return True
+        return False
+
     data = defaultdict(lambda: defaultdict(list))
     for row in tqdm.tqdm(preference_dataset, desc='Processing shareGPT', disable=silent):
+        if _filter_conversation(row):
+            print('filtered out', row['instruction'], row['output_1'], row['output_2'])
+            print('-' * 80)
+            continue
+
         instruction = row['instruction']
         prompt = 'Human: ' + instruction + '\n\nAssistant: '
         data[prompt]['sft_target'] = row['output_1']
