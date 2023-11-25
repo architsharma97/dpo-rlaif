@@ -13,3 +13,5 @@ importance_correction: false
 
 # if true, use a uniform (maximum entropy) reference model
 reference_free: false
+
+ipo: false

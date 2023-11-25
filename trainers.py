@@ -49,7 +49,8 @@ def dpo_loss(policy_chosen_logps: torch.FloatTensor,
              reference_rejected_logps: torch.FloatTensor,
              beta: float,
              reference_free: bool = False,
-             importance_correction: bool = False) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+             importance_correction: bool = False,
+             ipo: bool = False) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
     """Compute the DPO loss for a batch of policy and reference model log probabilities.
     
     Args:
@@ -73,9 +74,12 @@ def dpo_loss(policy_chosen_logps: torch.FloatTensor,
 
     logits = pi_logratios - ref_logratios
 
-    losses = -F.logsigmoid(beta * logits)
-    if importance_correction:
-        losses = losses * (policy_rejected_logps - reference_rejected_logps).detach().exp()
+    if ipo:
+        losses = (logits - 1 / (2*beta)) ** 2
+    else:
+        losses = -F.logsigmoid(beta * logits)
+        if importance_correction:
+            losses = losses * (policy_rejected_logps - reference_rejected_logps).detach().exp()
     chosen_rewards = beta * (policy_chosen_logps - reference_chosen_logps).detach()
     rejected_rewards = beta * (policy_rejected_logps - reference_rejected_logps).detach()
 
@@ -235,7 +239,7 @@ class BasicTrainer(object):
             losses, chosen_rewards, rejected_rewards = dpo_loss(
                 policy_chosen_logps, policy_rejected_logps, reference_chosen_logps,
                 reference_rejected_logps, beta=loss_config.beta, reference_free=loss_config.reference_free,
-                importance_correction=loss_config.importance_correction,)
+                importance_correction=loss_config.importance_correction, ipo=loss_config.ipo)
 
             if loss_config.sft_reg > 0.0:
                 losses -= loss_config.sft_reg * policy_chosen_logps
