@@ -13,6 +13,8 @@ def get_ai_outputs(max_prompt_length=256, max_length=1024, data_fraction=1.0, nu
         dataset_name = 'sharegpt'
     elif model == 'claude':
         dataset_name = 'shareclaude'
+    elif model == 'gpt4':
+        dataset_name = 'sharegpt4'
     prompt_iterator = get_batch_iterator([dataset_name,], tokenizer=tokenizer, split='train', batch_size=1, sft_mode=True,
                                          seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
                                          max_prompt_length=max_prompt_length, max_length=max_length, data_fraction=data_fraction, num_turns=num_turns,
@@ -83,12 +85,12 @@ def match_instruction_outputs(instruct_out_1, instruction_set_1, instruct_out_2,
 
 def main(base_dir, model1_name, model2_name, max_length, data_fraction, max_num_comparisons, llm='claude', filter_out_fraction=0., out_folder_name=None):
     def _get_model_outputs_and_instructions(name):
-        if name in ['chatgpt', 'claude']:
+        if name in ['chatgpt', 'gpt4', 'claude']:
             return get_ai_outputs(max_prompt_length=256, max_length=max_length, data_fraction=data_fraction, num_turns=1, filter_out_fraction=filter_out_fraction, model=name)
         else:
             return process_llama_samples_from_dir(os.path.join(base_dir, f'sharegpt2turn_noeos_maxlen{max_length}_{name}'),
                                                   max_prompt_length=256, max_length=max_length, num_turns=1, filter_out_fraction=filter_out_fraction,
-                                                  model='claude' if model2_name == 'claude' else 'chatgpt')
+                                                  model=model2_name if model2_name in ['claude', 'gpt4'] else 'chatgpt')
 
     out1, inst1 = _get_model_outputs_and_instructions(model1_name)
     out2, inst2 = _get_model_outputs_and_instructions(model2_name)
