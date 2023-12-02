@@ -79,7 +79,7 @@ def dpo_loss(policy_chosen_logps: torch.FloatTensor,
         losses = (logits - 1 / (2*beta)) ** 2
     else:
         if robust_eps > 0.0:
-            losses = -F.logsigmoid(beta * logits) * (1. - robust_eps) - F.logsigmoid(-beta * logits) * robust_eps
+            losses = (-F.logsigmoid(beta * logits) * (1. - robust_eps) - F.logsigmoid(-beta * logits) * robust_eps) / beta
         else:
             losses = -F.logsigmoid(beta * logits)
         if importance_correction:
