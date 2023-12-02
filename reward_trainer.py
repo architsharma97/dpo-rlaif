@@ -1,5 +1,6 @@
 import transformers
 import torch
+torch.backends.cuda.matmul.allow_tf32 = True
 import torch.nn.functional as F
 from preference_datasets import get_batch_iterator
 import argparse
@@ -25,25 +26,19 @@ def get_logits(model, batch):
     # logits = model(**combined_batch)['logits']
     # split_size = chosen_batch['attention_mask'].shape[0]
     # return logits[:split_size], logits[split_size:]
+
     chosen_logits = model(**chosen_batch)['logits']
     rejected_logits = model(**rejected_batch)['logits']
     return chosen_logits, rejected_logits
 
 def train_step(model, batch, optimizer):
     metrics = {}
-    logit_start = time.time()
     chosen_logits, rejected_logits = get_logits(model, batch)
-    logit_time = time.time() - logit_start
-    print(f'logit time: {logit_time}')
 
-    optimization_start = time.time()
     loss = -F.logsigmoid(chosen_logits - rejected_logits).mean()
-    print(chosen_logits, rejected_logits)
     loss.backward()
     optimizer.step()
     optimizer.zero_grad(set_to_none=True)
-    optimization_time = time.time() - optimization_start
-    print(f'optimization time: {optimization_time}')
 
     metrics['train/loss'] = loss.item()
     metrics['train/accuracy'] = (chosen_logits > rejected_logits).float().mean().item()
@@ -113,7 +108,7 @@ if __name__ == '__main__':
     model.train()
 
     for idx, batch in enumerate(train_iterator):
-        if (idx * args.batch_size) % args.eval_frequency == 0 and False:
+        if (idx * args.batch_size) % args.eval_frequency == 0:
             eval_start = time.time() 
             model.eval()
             metrics = defaultdict(list)
@@ -130,7 +125,6 @@ if __name__ == '__main__':
         train_start = time.time()
         train_metrics = train_step(model, batch, optimizer)
         train_time = time.time() - train_start
-        print(f'train time: {train_time}, examples_per_second: {args.batch_size / train_time}')
         wandb.log(train_metrics, step=(idx+1)*args.batch_size)
         wandb.log({'time/train_time': train_time}, step=(idx+1)*args.batch_size)
         wandb.log({'time/time_per_example': train_time / args.batch_size}, step=(idx+1)*args.batch_size)
