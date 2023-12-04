@@ -96,6 +96,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_fraction', type=float, default=1.0)
     parser.add_argument('--exp_name', type=str, default='reward_training_test')
     parser.add_argument('--eval_frequency', type=int, default=10000)
+    parser.add_argument('--n_eval_examples', type=int, default=None)
     parser.add_argument('--save_frequency', type=int, default=1, help='number of epochs between saves')
     parser.add_argument('--num_epochs', type=int, default=1)
     parser.add_argument('--debug', action='store_true', default=False)
@@ -129,13 +130,18 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.RMSprop(model.parameters(), lr=args.lr)
 
-    assert args.prefs_path is not None
+    if 'sharegpt' in args.prompt_set:
+        assert args.prefs_path is not None
     train_iterator = get_batch_iterator([args.prompt_set], tokenizer=tokenizer, split='train', batch_size=args.batch_size, sft_mode=False,
                                          seed=0, n_epochs=args.num_epochs, cache_dir=args.cache_dir, shuffle=False,
                                          max_prompt_length=args.max_prompt_length, max_length=args.max_length,
                                          num_turns=1, data_fraction=args.data_fraction, prefs_path=args.prefs_path, sampled_data_dir=None)
+    if args.n_eval_examples is None:
+        n_eval_epochs = 1
+    else:
+        n_eval_epochs = None
     eval_iterator = get_batch_iterator([args.prompt_set], tokenizer=tokenizer, split='test', batch_size=args.batch_size*2, sft_mode=False,
-                                        seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
+                                        seed=0, n_examples=args.n_eval_examples, n_epochs=n_eval_epochs, cache_dir=args.cache_dir, shuffle=False,
                                         max_prompt_length=args.max_prompt_length, max_length=args.max_length,
                                         num_turns=1, data_fraction=args.data_fraction, prefs_path=args.prefs_path, sampled_data_dir=None)
     eval_batches = list(eval_iterator)

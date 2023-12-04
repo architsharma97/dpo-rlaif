@@ -493,6 +493,7 @@ class BasicTrainer(object):
         if run_alpaca_eval:
             self.alpaca_eval(output_dir)
 
+
 class FSDPTrainer(BasicTrainer):
     def __init__(self, policy: nn.Module, config: DictConfig, seed: int, run_dir: str, reference_model: Optional[nn.Module] = None, rank: int = 0, world_size: int = 1):
         """A trainer subclass that uses PyTorch FSDP to shard the model across multiple GPUs.
@@ -587,6 +588,7 @@ class FSDPTrainer(BasicTrainer):
 
         if run_alpaca_eval:
             self.alpaca_eval(output_dir)
+
 
 class TensorParallelTrainer(BasicTrainer):
     def __init__(self, policy, config, seed, run_dir, reference_model=None, rank=0, world_size=1):
