@@ -2,18 +2,18 @@ import transformers
 import torch
 torch.backends.cuda.matmul.allow_tf32 = True
 import torch.nn.functional as F
-from preference_datasets import get_batch_iterator
+from preference_datasets import get_batch_iterator, get_dataset
 import argparse
 import wandb
 import os
 from collections import defaultdict
 import time
 
-from utils import pad_to_length
+from utils import pad_to_length, get_local_run_dir
 
 def get_logits(model, batch):
-    chosen_batch = {'attention_mask': batch['chosen_attention_mask'].to('cuda:0'), 'input_ids': batch['chosen_input_ids'].to('cuda:0')}
-    rejected_batch = {'attention_mask': batch['rejected_attention_mask'].to('cuda:0'), 'input_ids': batch['rejected_input_ids'].to('cuda:0')}
+    chosen_batch = {'attention_mask': batch['chosen_attention_mask'], 'input_ids': batch['chosen_input_ids']}
+    rejected_batch = {'attention_mask': batch['rejected_attention_mask'], 'input_ids': batch['rejected_input_ids']}
     # combine the chosen and rejected batches into one batch
     # combined_batch = {}
     # max_length = max(chosen_batch['attention_mask'].shape[1], rejected_batch['attention_mask'].shape[1])
@@ -44,14 +44,44 @@ def train_step(model, batch, optimizer):
     metrics['train/accuracy'] = (chosen_logits > rejected_logits).float().mean().item()
     return metrics
 
-def eval_step(model, batch):
-    metrics = {}
-    with torch.no_grad():
-        chosen_logits, rejected_logits = get_logits(model, batch)
 
-    metrics['eval/loss'] = (-F.logsigmoid(chosen_logits - rejected_logits)).squeeze(1).cpu().numpy().tolist()
-    metrics['eval/accuracy'] = (chosen_logits > rejected_logits).float().squeeze(1).cpu().numpy().tolist()
+def eval_loop(model, eval_batches):
+    def _eval_step(model, batch):
+        metrics = {}
+        with torch.no_grad():
+            chosen_logits, rejected_logits = get_logits(model, batch)
+
+        metrics['eval/loss'] = (-F.logsigmoid(chosen_logits - rejected_logits)).squeeze(1).cpu().numpy().tolist()
+        metrics['eval/accuracy'] = (chosen_logits > rejected_logits).float().squeeze(1).cpu().numpy().tolist()
+        return metrics
+
+    eval_start = time.time() 
+    model.eval()
+    metrics = defaultdict(list)
+    for batch in eval_batches:
+        batch_metrics = _eval_step(model, batch)
+        for k, v in batch_metrics.items():
+            metrics[k].extend(v)
+    eval_time = time.time() - eval_start
+    wandb.log({k: sum(v) / len(v) for k, v in metrics.items()},
+                step=(idx+1)*args.batch_size)
+    wandb.log({'time/eval_time': eval_time}, step=idx * args.batch_size)
+    model.train()
     return metrics
+
+def save(model, optimizer, test_metrics, epoch, step, exp_dir):
+    save_dir = os.path.join(exp_dir, f'epoch-{epoch}')
+    os.makedirs(save_dir, exist_ok=True)
+    torch.save({
+        'state': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'epoch': epoch,
+        'step': step,
+    }, os.path.join(save_dir, 'checkpoint.pt'))
+    with open(os.path.join(save_dir, 'test_predictions.txt'), 'w') as f:
+        for acc, loss in zip(test_metrics['eval/accuracy'], test_metrics['eval/loss']):
+            f.write(f'{acc},{loss}\n')
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -66,6 +96,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_fraction', type=float, default=1.0)
     parser.add_argument('--exp_name', type=str, default='reward_training_test')
     parser.add_argument('--eval_frequency', type=int, default=10000)
+    parser.add_argument('--save_frequency', type=int, default=1, help='number of epochs between saves')
     parser.add_argument('--num_epochs', type=int, default=1)
     parser.add_argument('--debug', action='store_true', default=False)
     parser.add_argument('--lr', type=float, default=1e-6)
@@ -75,6 +106,9 @@ if __name__ == '__main__':
         wandb.init = lambda *args, **kwargs: None
         wandb.log = lambda *args, **kwargs: None
 
+    exp_dir = get_local_run_dir(args.exp_name, ['/ebs/.cache'])
+    os.makedirs(exp_dir, exist_ok=True)
+    print(f'experiment directory: {exp_dir}')
     os.environ['WANDB_CACHE_DIR'] = args.cache_dir
     wandb.init(
         entity=None,
@@ -100,27 +134,22 @@ if __name__ == '__main__':
                                          seed=0, n_epochs=args.num_epochs, cache_dir=args.cache_dir, shuffle=False,
                                          max_prompt_length=args.max_prompt_length, max_length=args.max_length,
                                          num_turns=1, data_fraction=args.data_fraction, prefs_path=args.prefs_path, sampled_data_dir=None)
-    eval_iterator = get_batch_iterator([args.prompt_set], tokenizer=tokenizer, split='test', batch_size=args.batch_size, sft_mode=False,
+    eval_iterator = get_batch_iterator([args.prompt_set], tokenizer=tokenizer, split='test', batch_size=args.batch_size*2, sft_mode=False,
                                         seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
                                         max_prompt_length=args.max_prompt_length, max_length=args.max_length,
                                         num_turns=1, data_fraction=args.data_fraction, prefs_path=args.prefs_path, sampled_data_dir=None)
     eval_batches = list(eval_iterator)
     model.train()
 
+    # compute the number of examples per epoch: TODO(works for single dataset only)
+    all_data = get_dataset(args.prompt_set, cache_dir=args.cache_dir, split='train', prefs_path=args.prefs_path, num_turns=1, data_fraction=args.data_fraction)
+    n_examples_per_epoch = (len(all_data) // args.batch_size) * args.batch_size
+    next_save = n_examples_per_epoch
+    next_save = 1
+
     for idx, batch in enumerate(train_iterator):
         if (idx * args.batch_size) % args.eval_frequency == 0:
-            eval_start = time.time() 
-            model.eval()
-            metrics = defaultdict(list)
-            for batch in eval_batches:
-                batch_metrics = eval_step(model, batch)
-                for k, v in batch_metrics.items():
-                    metrics[k].extend(v)
-            eval_time = time.time() - eval_start
-            wandb.log({k: sum(v) / len(v) for k, v in metrics.items()},
-                      step=(idx+1)*args.batch_size)
-            wandb.log({'time/eval_time': eval_time}, step=idx * args.batch_size)
-            model.train()
+            eval_loop(model, eval_batches)
 
         train_start = time.time()
         train_metrics = train_step(model, batch, optimizer)
@@ -130,3 +159,9 @@ if __name__ == '__main__':
         wandb.log({'time/time_per_example': train_time / args.batch_size}, step=(idx+1)*args.batch_size)
         wandb.log({'time/examples_per_second': args.batch_size / train_time}, step=(idx+1)*args.batch_size)
         print(f'step: {idx+1}, train loss: {train_metrics["train/loss"]:.4f}, train acc: {train_metrics["train/accuracy"]:.4f}')
+
+        if (idx + 1) * args.batch_size >= next_save:
+            print(f'saving checkpoint at step {(idx + 1) * args.batch_size}')
+            test_metrics = eval_loop(model, eval_batches)
+            save(model, optimizer, test_metrics, ((idx + 1) * args.batch_size) // n_examples_per_epoch, idx, exp_dir)
+            next_save += args.save_frequency * n_examples_per_epoch
