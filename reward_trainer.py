@@ -145,7 +145,6 @@ if __name__ == '__main__':
     all_data = get_dataset(args.prompt_set, cache_dir=args.cache_dir, split='train', prefs_path=args.prefs_path, num_turns=1, data_fraction=args.data_fraction)
     n_examples_per_epoch = (len(all_data) // args.batch_size) * args.batch_size
     next_save = n_examples_per_epoch
-    next_save = 1
 
     for idx, batch in enumerate(train_iterator):
         if (idx * args.batch_size) % args.eval_frequency == 0:
