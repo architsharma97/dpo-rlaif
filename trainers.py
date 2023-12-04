@@ -321,7 +321,7 @@ class BasicTrainer(object):
 
         for batch in self.train_iterator:
             #### BEGIN EVALUATION ####
-            if self.example_counter % self.config.eval_every == 0 and (self.example_counter > 0 or self.config.do_first_eval):
+            if (self.example_counter % self.config.eval_every == 0 and (self.example_counter > 0 or self.config.do_first_eval)) or (self.example_counter + self.config.batch_size >= next_save):
                 rank0_print(f'Running evaluation after {self.example_counter} train examples')
                 self.policy.eval()
 
@@ -432,6 +432,11 @@ class BasicTrainer(object):
                     if type(self.config.save_every) == str and self.config.save_every.startswith('epoch'):
                         output_dir = os.path.join(self.run_dir, f'epoch-{self.example_counter // n_examples_per_epoch}')
                         next_save += n_examples_per_epoch * epoch_freq
+                        os.makedirs(output_dir, exist_ok=True)
+                        # the predictions are from a model that are 1 step old
+                        with open(os.path.join(output_dir, 'test_predictions.txt'), 'w') as f:
+                            for acc, loss in zip(all_eval_metrics['rewards_eval/accuracies'], all_eval_metrics['loss/eval']):
+                                f.write(f'{acc},{loss}\n')
                     else:
                         output_dir = os.path.join(self.run_dir, f'step-{self.example_counter}')
                         next_save += self.config.save_every
