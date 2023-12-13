@@ -369,8 +369,6 @@ def get_sharegpt_aiprefs(split: str, silent: bool = False, cache_dir: str = None
         data[prompt]['sft_target'] = row['output_1']
         data[prompt]['responses'] = [row['output_1'], row['output_2']]
         data[prompt]['pairs'] = [(0, 1)] if row['preference'] == 1 else [(1, 0)]
-        # data[prompt]['pairs'] = [(0, 1)] # always select GPT4 response as preferred one
-        # data[prompt]['pairs'] = [(0, 1) if np.random.rand() < 0.8 else (1, 0)] # select GPT4 with 80% probability
 
     all_prompts = list(data.keys())
     if split == 'train':
