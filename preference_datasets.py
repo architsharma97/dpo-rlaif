@@ -329,10 +329,10 @@ def get_sharegpt4(split: str, silent: bool = False, cache_dir: str = None, num_t
 
     all_prompts = list(data.keys())
     if split == 'train':
-        prompts_train = all_prompts[:]
+        prompts_train = all_prompts[512:]
         data = {k: v for k, v in data.items() if k in prompts_train}
     if split == 'test':
-        prompts_test = all_prompts[:256] # also used in training, so not exactly a test set
+        prompts_test = all_prompts[:512] # also used in training, so not exactly a test set
         data = {k: v for k, v in data.items() if k in prompts_test}
 
     print(f'Created a dataset with {len(data)} prompts from GPT4 competions on ShareGPT')
@@ -372,10 +372,10 @@ def get_sharegpt_aiprefs(split: str, silent: bool = False, cache_dir: str = None
 
     all_prompts = list(data.keys())
     if split == 'train':
-        prompts_train = all_prompts[:]
+        prompts_train = all_prompts[512:]
         data = {k: v for k, v in data.items() if k in prompts_train}
     if split == 'test':
-        prompts_test = all_prompts[:1024] # also used in the train set, so not exactly a test set
+        prompts_test = all_prompts[:512] # also used in the train set, so not exactly a test set
         data = {k: v for k, v in data.items() if k in prompts_test}
 
     print(f'Created a dataset with {len(data)} prompts from ShareGPT')
