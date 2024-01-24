@@ -329,7 +329,7 @@ def get_sharegpt4(split: str, silent: bool = False, cache_dir: str = None, num_t
 
     all_prompts = list(data.keys())
     if split == 'train':
-        prompts_train = all_prompts[512:]
+        prompts_train = all_prompts[:]
         data = {k: v for k, v in data.items() if k in prompts_train}
     if split == 'test':
         prompts_test = all_prompts[:512] # also used in training, so not exactly a test set
@@ -372,7 +372,7 @@ def get_sharegpt_aiprefs(split: str, silent: bool = False, cache_dir: str = None
 
     all_prompts = list(data.keys())
     if split == 'train':
-        prompts_train = all_prompts[512:]
+        prompts_train = all_prompts[:]
         data = {k: v for k, v in data.items() if k in prompts_train}
     if split == 'test':
         prompts_test = all_prompts[:512] # also used in the train set, so not exactly a test set
