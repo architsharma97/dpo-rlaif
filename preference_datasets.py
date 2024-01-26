@@ -420,6 +420,28 @@ def get_ultrafeedback(split: str, silent: bool = False, cache_dir: str = None) -
     print(f'Created a dataset with {len(data)} prompts from UltraFeedback')
     return data
 
+
+def get_ultrachat(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
+    '''
+    This function currently only returns the first turn of the conversation for SFT.
+    '''
+    dataset = datasets.load_dataset("HuggingFaceH4/ultrachat_200k", cache_dir=cache_dir)[split + '_sft']
+
+    data = defaultdict(lambda: defaultdict(list))
+    for row in tqdm.tqdm(dataset, desc='Processing UltraChat', disable=silent):
+        if len(row['messages']) < 2:
+            continue
+        if row['messages'][0]['role'] != 'user' or row['messages'][1]['role'] != 'assistant':
+            continue
+        prompt = 'Human: ' + row['messages'][0]['content'] + '\n\nAssistant: '
+        data[prompt]['sft_target'] = row['messages'][1]['content']
+        data[prompt]['pairs'] = []
+        data[prompt]['responses'] = []
+
+    print(f'Created a dataset with {len(data)} prompts from UltraChat')
+    return data
+
+
 def get_wikitext(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
     """Load the WikiText dataset. Only returns SFT data.
 
@@ -512,6 +534,8 @@ def get_dataset(name: str, split: str, silent: bool = False, cache_dir: str = No
         data = get_alpaca_eval(split, silent=silent, cache_dir=cache_dir)
     elif name == 'ultrafeedback':
         data = get_ultrafeedback(split, silent=silent, cache_dir=cache_dir)
+    elif name == 'ultrachat':
+        data = get_ultrachat(split, silent=silent, cache_dir=cache_dir)
     else:
         raise ValueError(f"Unknown dataset '{name}'")
 
