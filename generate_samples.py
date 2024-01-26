@@ -36,6 +36,8 @@ def main():
         model_path = 'mistralai/Mistral-7B-v0.1'
     elif args.model_name == 'deepseek7b':
         model_path = 'deepseek-ai/deepseek-llm-7b-base'
+    elif args.model_name == 'zephyr_sft':
+        model_path = 'alignment-handbook/zephyr-7b-sft-full'
 
     policy = transformers.AutoModelForCausalLM.from_pretrained(model_path, cache_dir=args.cache_dir, device_map='balanced')
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_path, cache_dir=args.cache_dir)
