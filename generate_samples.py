@@ -80,6 +80,21 @@ def main():
         for temp in temps:
             all_models[temp] = os.path.join(output_dir, f'fastforward{args.ff}.json')
 
+    elif args.prompt_set == 'ultrafeedback':
+        max_length = args.max_length
+        max_prompt_length = args.max_prompt_length
+        chunk_size = args.chunk_size
+        assert len(temps) == 1
+        sample_folder_name = f'ultrafeedback_maxlen{max_length}_temp{temps[0]}'
+        if args.archive is not None:
+            output_dir = os.path.join(args.archive, sample_folder_name)
+        else:
+            output_dir = os.path.join(args.cache_dir, args.model_name + '_samples', sample_folder_name)
+        os.makedirs(output_dir, exist_ok=True)
+
+        for temp in temps:
+            all_models[temp] = os.path.join(output_dir, f'fastforward{args.ff}.json')
+
     for temp in temps:
         print(f'generating samples at temperature {temp}')
         policy.eval()
@@ -94,7 +109,11 @@ def main():
                                                  seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
                                                  max_prompt_length=max_prompt_length, max_length=max_length,
                                                  num_turns=1, data_fraction=args.data_fraction, prefs_path=None, sampled_data_dir=None)
-
+        elif args.prompt_set == 'ultrafeedback':
+            prompt_iterator = get_batch_iterator(['ultrafeedback'], tokenizer=tokenizer, split='train', batch_size=chunk_size, sft_mode=True,
+                                                 seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
+                                                 max_prompt_length=max_prompt_length, max_length=max_length,
+                                                 num_turns=1, data_fraction=args.data_fraction, prefs_path=None, sampled_data_dir=None)
         responses = {}
         batch_idx = 0
         if args.ff > 0:
