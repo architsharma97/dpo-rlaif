@@ -420,6 +420,48 @@ def get_ultrafeedback(split: str, silent: bool = False, cache_dir: str = None) -
     print(f'Created a dataset with {len(data)} prompts from UltraFeedback')
     return data
 
+def get_ultrafeedbacknarrow(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
+    """Loads the custom ultrafeedback dataset.
+    """
+    if split=='train':
+        preference_dataset = datasets.load_dataset("Asap7772/ultrafeedback_binarized_narrow", cache_dir=cache_dir)[split + '_prefs']
+    else:
+        # use the same test set as the original ultrafeedback
+        preference_dataset = datasets.load_dataset("Asap7772/ultrafeedback_binarized_relabelled_ultrarm", cache_dir=cache_dir)[split + '_prefs']
+
+    filter_set = ['<s>', '</s>']
+    def _filter_conversation(conv):
+        for f in filter_set:
+            if f in row['prompt'] or f in row['chosen'] or f in row['rejected']:
+                return True
+        return False
+
+    data = defaultdict(lambda: defaultdict(list))
+    for row in tqdm.tqdm(preference_dataset, desc='Processing UltraFeedback', disable=silent):
+        if _filter_conversation(row):
+            print('filtered out', row['prompt'], row['chosen'], row['rejected'])
+            print('-' * 80)
+            continue
+
+        instruction = row['prompt']
+        prompt = 'Human: ' + instruction + '\n\nAssistant: '
+        chosen = row['chosen'][len(prompt):]
+        rejected = row['rejected'][len(prompt):]
+        data[prompt]['sft_target'] = chosen
+        data[prompt]['responses'] = [chosen, rejected]
+        data[prompt]['pairs'] = [(0, 1)]
+
+    all_prompts = list(data.keys())
+    if split == 'train':
+        prompts_train = all_prompts[:]
+        data = {k: v for k, v in data.items() if k in prompts_train}
+    if split == 'test':
+        prompts_test = all_prompts[:256] # also used in the train set, so not exactly a test set
+        data = {k: v for k, v in data.items() if k in prompts_test}
+
+    print(f'Created a dataset with {len(data)} prompts from UltraFeedback')
+    return data
+
 
 def get_ultrachat(split: str, silent: bool = False, cache_dir: str = None) -> Dict[str, Dict[str, Union[List[Tuple[int, int]], List[str], str]]]:
     '''
@@ -534,6 +576,8 @@ def get_dataset(name: str, split: str, silent: bool = False, cache_dir: str = No
         data = get_alpaca_eval(split, silent=silent, cache_dir=cache_dir)
     elif name == 'ultrafeedback':
         data = get_ultrafeedback(split, silent=silent, cache_dir=cache_dir)
+    elif name == 'ultrafeedbacknarrow':
+        data = get_ultrafeedbacknarrow(split, silent=silent, cache_dir=cache_dir)
     elif name == 'ultrachat':
         data = get_ultrachat(split, silent=silent, cache_dir=cache_dir)
     else:
