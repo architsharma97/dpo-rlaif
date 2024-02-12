@@ -187,7 +187,7 @@ def get_sharegpt(split: str, silent: bool = False, cache_dir: str = None, num_tu
         dataset = json.load(f)
     print('done')
 
-    filter_set = ['<s>', '</s>']
+    filter_set = ['<s>', '</s>', '<|endoftext|>']
     def _filter_conversation(conv):
         for entry in conv['conversations']:
             for f in filter_set:
@@ -350,7 +350,7 @@ def get_sharegpt_aiprefs(split: str, silent: bool = False, cache_dir: str = None
     num_instructions = len(preference_dataset)
     preference_dataset = preference_dataset[:int(num_instructions * data_fraction)]
 
-    filter_set = ['<s>', '</s>']
+    filter_set = ['<s>', '</s>', '<|endoftext|>']
     def _filter_conversation(conv):
         for f in filter_set:
             if f in row['instruction'] or f in row['output_1'] or f in row['output_2']:
