@@ -55,7 +55,7 @@ See sample wandb outputs for this example [here](https://wandb.ai/eric_anthony_m
 
 ### Step 1: Set up environment
 
-First, create a virtualenv and install the dependencies. Python 3.8+ is recommended.
+First, create a virtualenv and install the dependencies. Python 3.8+ is recommended. (Note: Python 3.10+ is required to do evaluation with alpaca-eval)
 
     python3 -m venv env
     source env/bin/activate
