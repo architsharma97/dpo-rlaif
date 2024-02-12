@@ -1,4 +1,5 @@
-# DPO (Direct Preference Optimization) for RLAIF and Distillation
+# A Critical Evaluation of AI Feedback for Aligning Language Models
+This codebase mostly builds on the existing code from the [DPO](https://github.com/eric-mitchell/direct-preference-optimization) repo.
 
 ## What is this repo?
 
@@ -22,7 +23,7 @@ The files in this repo are:
 For DPO, the SFT stage essentially ensures that the preference data we train on is in-distribution for our policy before we actually do the learning from preferences part.
 
 Run SFT for Pythia 6.9B on Anthropic-HH data with batch size 64:
-
+    python train.py model=llama2_7b exp_name=sharegpt1turn_llama2_7b_sft0.1 batch_size=8 eval_batch_size=16 sample_during_eval=false loss=sft debug=false lr=1e-6 trainer=FSDPTrainer activation_checkpointing=True data_fraction=0.1 save_every=epoch_3 n_epochs=9
     python -u train.py model=pythia69 datasets=[hh] loss=sft exp_name=anthropic_dpo_pythia69 gradient_accumulation_steps=2 batch_size=64 eval_batch_size=32 trainer=FSDPTrainer sample_during_eval=false
 
 Run SFT for a custom model (for example, Llama at a local path) on Anthropic-HH + Stanford Human Preference data with batch size 64:
@@ -55,7 +56,7 @@ See sample wandb outputs for this example [here](https://wandb.ai/eric_anthony_m
 
 ### Step 1: Set up environment
 
-First, create a virtualenv and install the dependencies. Python 3.8+ is recommended. (Note: Python 3.10+ is required to do evaluation with alpaca-eval)
+First, create a virtualenv and install the dependencies. Python 3.8+ is recommended, though Python 3.10+ is required to do evaluation with alpaca-eval.
 
     python3 -m venv env
     source env/bin/activate
@@ -81,6 +82,16 @@ Check either wandb (if enabled, it is by default) or your output log to find the
 On 4 80GB A100s, DPO training took about 2hrs 45min.
 
 **See sample wandb outputs for the DPO step [here](https://wandb.ai/eric_anthony_mitchell/dpo-demos/runs/og8q3euz).**
+
+### Step 4: Run AlpacaEval evaluations:
+Evaluation is done using an oracle annotator with [AlpacaEval](https://github.com/tatsu-lab/alpaca_eval). To run the evaluation script, the general pattern is
+
+    bash ./eval_ckpt.sh (gpt-num) (path-to-checkpoint) (eval-run-name) (oracle-annotator-name) (temperature) (model-name)
+
+Below is a specific example:
+
+    bash ./eval_ckpt.sh 0 /home/ubuntu/.cache/claudeprefs_llama7b/epoch-3/ mistral7b_epoch_3_dpo gpt4 0.7 mistral7b
+
 
 ### Customizing training
 The options for training are in `config/config.yaml`, `config/model/blank_model.yaml`, and `config/loss/dpo.yaml`. See the comments in these files for more information on what they do.
