@@ -36,6 +36,12 @@ def main():
         model_path = 'mistralai/Mistral-7B-v0.1'
     elif args.model_name == 'deepseek7b':
         model_path = 'deepseek-ai/deepseek-llm-7b-base'
+    elif args.model_name == "llama2_13b":
+        model_path = "meta-llama/Llama-2-13b-hf"
+    elif args.model_name == "yi_6b":
+        model_path = "01-ai/Yi-6B"
+    elif args.model_name == "mixtral":
+        model_path = "mistralai/Mixtral-8x7B-v0.1"
 
     policy = transformers.AutoModelForCausalLM.from_pretrained(model_path, cache_dir=args.cache_dir, device_map='balanced')
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_path, cache_dir=args.cache_dir)
