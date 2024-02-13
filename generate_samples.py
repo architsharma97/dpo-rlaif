@@ -32,12 +32,22 @@ def main():
     
     if args.model_name == 'llama7b':
         model_path = 'huggyllama/llama-7b'
+    elif args.model_name == 'llama2-7b':
+        model_path = 'meta-llama/Llama-2-7b'
+    elif args.model_name == 'ultralm':
+        model_path = 'openbmb/UltraLM-13b'
+    elif args.model_name == 'wizardlm':
+        model_path = 'WizardLM/WizardLM-70B-V1.0'
+    elif args.model_name == 'falcon':
+        model_path = 'tiiuae/falcon-7b-instruct'
     elif args.model_name == 'mistral7b':
         model_path = 'mistralai/Mistral-7B-v0.1'
     elif args.model_name == 'deepseek7b':
         model_path = 'deepseek-ai/deepseek-llm-7b-base'
     elif args.model_name == 'zephyr_sft':
         model_path = 'alignment-handbook/zephyr-7b-sft-full'
+    else:
+        raise ValueError(f'unknown model name {args.model_name}')
 
     policy = transformers.AutoModelForCausalLM.from_pretrained(model_path, cache_dir=args.cache_dir, device_map='balanced')
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_path, cache_dir=args.cache_dir)
@@ -94,6 +104,21 @@ def main():
 
         for temp in temps:
             all_models[temp] = os.path.join(output_dir, f'fastforward{args.ff}.json')
+    
+    elif args.prompt_set == 'ultrachat':
+        max_length = args.max_length
+        max_prompt_length = args.max_prompt_length
+        chunk_size = args.chunk_size
+        assert len(temps) == 1
+        sample_folder_name = f'ultrachat_maxlen{max_length}_temp{temps[0]}'
+        if args.archive is not None:
+            output_dir = os.path.join(args.archive, sample_folder_name)
+        else:
+            output_dir = os.path.join(args.cache_dir, args.model_name + '_samples', sample_folder_name)
+        os.makedirs(output_dir, exist_ok=True)
+
+        for temp in temps:
+            all_models[temp] = os.path.join(output_dir, f'fastforward{args.ff}.json')
 
     for temp in temps:
         print(f'generating samples at temperature {temp}')
@@ -111,6 +136,11 @@ def main():
                                                  num_turns=1, data_fraction=args.data_fraction, prefs_path=None, sampled_data_dir=None)
         elif args.prompt_set == 'ultrafeedback':
             prompt_iterator = get_batch_iterator(['ultrafeedback'], tokenizer=tokenizer, split='train', batch_size=chunk_size, sft_mode=True,
+                                                 seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
+                                                 max_prompt_length=max_prompt_length, max_length=max_length,
+                                                 num_turns=1, data_fraction=args.data_fraction, prefs_path=None, sampled_data_dir=None)
+        elif args.prompt_set == 'ultrachat':
+            prompt_iterator = get_batch_iterator(['ultrachat'], tokenizer=tokenizer, split='train', batch_size=chunk_size, sft_mode=True,
                                                  seed=0, n_epochs=1, cache_dir=args.cache_dir, shuffle=False,
                                                  max_prompt_length=max_prompt_length, max_length=max_length,
                                                  num_turns=1, data_fraction=args.data_fraction, prefs_path=None, sampled_data_dir=None)
