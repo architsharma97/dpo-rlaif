@@ -3,22 +3,32 @@ This codebase mostly builds on the existing code from the [DPO](https://github.c
 
 ## What is this repo?
 
-This repo includes reference implementations of the DPO algorithm for training language models from preference data, as described in the paper [A Critical Evaluation of AI Feedback for Aligning Language Models](https://arxiv.org/abs/2305.18290).
+This repo includes reference code used to investigate training with AI feedback, as described in the paper [A Critical Evaluation of AI Feedback for Aligning Language Models](https://arxiv.org/abs/2305.18290).
 
-The code here supports any causal HuggingFace model- look at our examples in `config/model` to add your own. Adding your own datasets is also easy. See [the README section](https://github.com/huggingface/peft) on adding datasets.
+The code here supports any causal HuggingFace model- look at our examples in `config/model` to add your own. Adding your own datasets is also easy. See [the README section](#adding-new-datasets) on adding datasets.
 
-The DPO pipeline has two stages:
+Our AI feedback DPO pipeline is outlined below:
 
 1. Run supervised fine-tuning (SFT) on the dataset(s) of interest.
 2. Run preference learning on the model from step 1, using preference data (ideally from the same distribution as the SFT examples).
 
-The files in this repo are:
-- `train.py`: the main entry point for training (either SFT or DPO preference-based training)
-- `trainers.py`: the trainer classes (e.g., implementing the loop of learning as well as multi-GPU logic)
-- `utils.py`: some convenience functions used by multiple other files
-- `preference_datasets.py`: dataset processing logic for both SFT and DPO preference-based training; **this is where you'll need to make some additions to train on your own data**
+
+Repo files:
+
+- Slightly modified from DPO script:
+    - `train.py`: the main entry point for training (either SFT or DPO preference-based training)
+    - `trainers.py`: the trainer classes (e.g., implementing the loop of learning as well as multi-GPU logic)
+    - `utils.py`: some convenience functions used by multiple other files
+    - `preference_datasets.py`: dataset processing logic for both SFT and DPO preference-based training; **this is where you'll need to make some additions to train on your own data**
+
+- (New scripts:) 
+    - `ai_completions.py`: 
+    - `generate_samples.py`: 
+    - `label_ai_preferences.py`: 
+    - `reward_trainer.py`: 
 
 ## Running SFT
+> This README section is mostly copied from the [DPO README](https://github.com/eric-mitchell/direct-preference-optimization), with a few changes.
 
 For DPO, the SFT stage essentially ensures that the preference data we train on is in-distribution for our policy before we actually do the learning from preferences part.
 
@@ -39,6 +49,7 @@ To run a different model, either add a new model config to `config/model`, or us
     python -u train.py ... model=blank_model model.name_or_path=gpt2-xl model.block=GPT2Block
 
 ## Running DPO
+> This README section is mostly copied from the [DPO README](https://github.com/eric-mitchell/direct-preference-optimization), with a few changes.
 
 To run DPO, use the same command as SFT, but pass `loss=dpo`, `loss.beta=DESIRED_BETA` (0.1-0.5 is a good starting point), and `model.archive=/path/to/checkpoint/from/sft/step-XXXX/policy.pt`. If SFT completed successfully, you should also have a `/.../LATEST/policy.pt` from the end of training.
 
@@ -123,6 +134,7 @@ You can use one of the pre-configured models by passing `model=some_model`, wher
 If you want to use another model, just create a new config for that model (following our examples; it must be a `.yaml` file!), or use `model=blank_model` with `model.name_or_path=NAME_OR_PATH`, optionally `model.tokenizer_name_or_path=TOKENIZER_NAME_OR_PATH` if it is different than the model's name/path, and `model.block_name=NAME_OF_TRANSFORMER_BLOCK` (if you are using FSDP). The only other options you might want to change are the dpo loss options, which are `loss.beta` and `loss.reference_free` (see `config/loss/dpo.yaml`).
 
 ## Trainer classes
+> This README section is mostly copied from the [DPO README](https://github.com/eric-mitchell/direct-preference-optimization), with a few changes.
 
 We implement three different trainer classes in `trainers.py`:
 - `BasicTrainer`: For multiple GPUs, naively partition the model among them. e.g., for two GPUs, the first half of the model layers will be on GPU 0, the second half will be on GPU 1. This trainer effectively increases your available GPU memory without using multiple GPUs are once for compute (so you get no speedup).
@@ -135,6 +147,8 @@ We implement three different trainer classes in `trainers.py`:
  For single GPU training, use `BasicTrainer`. For many-GPU setups, `FSDPTrainer` will most likely be the best choice, though these haven't been benchmarked yet.
 
 # Adding new datasets
+> This README section is mostly copied from the [DPO README](https://github.com/eric-mitchell/direct-preference-optimization), with a few changes.
+
 Adding new/custom datasets is easy, and shouldn't take more than 10 minutes or so. Add your dataset to `preference_datasets.py` (we've implemented Anthropic-HH, Stanford Human Preferences, and StackExchange as references). Follow our reference datasets (in the functions `get_se()`, `get_shp()`, `get_hh()`); you essentially need to return a dict mapping each prompt to another dict containing three values:
 
 - `responses: List[str]`: the list of responses on which preferences are given
@@ -146,11 +160,13 @@ Once you've added your dataset, for example `xyz`, you can train on it by passin
 **Make sure you've updated `preference_datasets:get_dataset()` to return your new dataset when its name is passed in!**
 
 # Tips for faster training on multiple GPUs
+> This README section is mostly copied from the [DPO README](https://github.com/eric-mitchell/direct-preference-optimization), with a few changes.
+
 FSDP is recommended for faster training when multiple GPUs are available. In general, you should try to use a batch size of at least 2 on each GPU (i.e., `batch_size // (grad_accumulation_steps * N_GPUS)` is at least 2) to see a speedup from FSDP compared to the `BasicTrainer`. One way to do this is to use mixed precision. This repo implements mixed precision through [FSDP](https://pytorch.org/docs/stable/fsdp.html#torch.distributed.fsdp.MixedPrecision). Enable mixed precision (only supported for `FSDPTrainer`, currently) by passing `model.fsdp_policy_mp=bfloat16` or `model.fsdp_policy_mp=float16` (only `bfloat16` has been tested). Another way to reduce memory usage is activation checkpointing (or *gradient checkpointing*), which can be enabled with `activation_checkpointing=true` (also implemented only for `FSDPTrainer`). Activation checkpointing doesn't always increase throughput, but if you're stuck at batch size per GPU of 1, it's worth a try.
 
 See [this article](https://pytorch.org/blog/efficient-large-scale-training-with-pytorch/) for more information about optimizing FSDP.
 
-# Citing DPO
+# Citation
 If DPO or this repository is useful in your own research, you can use the following BibTeX entry:
 
     @misc{rafailov2023direct,
