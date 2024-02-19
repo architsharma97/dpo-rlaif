@@ -89,7 +89,7 @@ if __name__ == '__main__':
     parser.add_argument('--prompt_set', type=str, default='sharegpt')
     parser.add_argument('--prefs_path', type=str, default=None)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--cache_dir', type=str, default='/ebs/.cache/ubuntu/')
+    parser.add_argument('--cache_dir', type=str, default='/home/ubuntu/.cache/rlaif/')
     parser.add_argument('--max_length', type=int, default=512)
     parser.add_argument('--max_prompt_length', type=int, default=256)
     parser.add_argument('--batch_size', type=int, default=8)
@@ -107,7 +107,7 @@ if __name__ == '__main__':
         wandb.init = lambda *args, **kwargs: None
         wandb.log = lambda *args, **kwargs: None
 
-    exp_dir = get_local_run_dir(args.exp_name, ['/ebs/.cache'])
+    exp_dir = get_local_run_dir(args.exp_name, ['/home/ubuntu/.cache'])
     os.makedirs(exp_dir, exist_ok=True)
     print(f'experiment directory: {exp_dir}')
     os.environ['WANDB_CACHE_DIR'] = args.cache_dir

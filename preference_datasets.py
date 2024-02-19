@@ -803,7 +803,7 @@ def strings_match_up_to_spaces(str_a: str, str_b: str) -> bool:
 
 if __name__ == '__main__':
     import transformers
-    cache_dir = '/ebs/.cache'
+    cache_dir = '/home/ubuntu/.cache'
     tokenizer = transformers.AutoTokenizer.from_pretrained('gpt2-xl', cache_dir=cache_dir)
     tokenizer.pad_token_id = tokenizer.eos_token_id
     iterator = get_batch_iterator(['wiki'], tokenizer=tokenizer, split='test', batch_size=1, sft_mode=True, seed=0, n_epochs=10, cache_dir=cache_dir)

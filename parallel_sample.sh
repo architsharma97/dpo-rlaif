@@ -1,8 +1,7 @@
 #!/bin/bash
 cd ~/dpo-rlaif
 # examples
-# /home/archit/.cache/archit/llama7b_sharegpt_sft/step-250016
-# /ebs/.cache/ubuntu/sharegpt2turn_llama7b_sft_maxlen512_2023-07-24_16-38-00_740003/step-550000
+# /home/ubuntu/.cache/rlaif/sharegpt2turn_llama7b_sft_maxlen512_2023-07-24_16-38-00_740003/step-550000
 model_ckpt_dir=$1
 model_name="${2:-llama7b}"
 temperature="${3:-1.0}"
