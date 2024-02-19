@@ -89,7 +89,7 @@ if __name__ == '__main__':
     parser.add_argument('--prompt_set', type=str, default='sharegpt')
     parser.add_argument('--prefs_path', type=str, default=None)
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--cache_dir', type=str, default='/home/ubuntu/.cache/rlaif/')
+    parser.add_argument('--cache_dir', type=str, default=os.getenv("PROJECT_CACHE", "~/.cache"))
     parser.add_argument('--max_length', type=int, default=512)
     parser.add_argument('--max_prompt_length', type=int, default=256)
     parser.add_argument('--batch_size', type=int, default=8)
@@ -107,7 +107,7 @@ if __name__ == '__main__':
         wandb.init = lambda *args, **kwargs: None
         wandb.log = lambda *args, **kwargs: None
 
-    exp_dir = get_local_run_dir(args.exp_name, ['/home/ubuntu/.cache'])
+    exp_dir = get_local_run_dir(args.exp_name, [os.getenv("PROJECT_CACHE", "~/.cache")])
     os.makedirs(exp_dir, exist_ok=True)
     print(f'experiment directory: {exp_dir}')
     os.environ['WANDB_CACHE_DIR'] = args.cache_dir
@@ -118,9 +118,9 @@ if __name__ == '__main__':
         name=args.exp_name,
     )
 
-    model = transformers.AutoModelForSequenceClassification.from_pretrained('mistralai/Mistral-7B-v0.1', cache_dir=args.cache_dir, 
-                                                                            num_labels=1, torch_dtype=torch.float32, low_cpu_mem_usage=True, device_map='balanced')
-    tokenizer = transformers.AutoTokenizer.from_pretrained('mistralai/Mistral-7B-v0.1', cache_dir=args.cache_dir)
+    model = transformers.AutoModelForSequenceClassification.from_pretrained('mistralai/Mistral-7B-v0.1', num_labels=1, 
+                                                                            torch_dtype=torch.float32, low_cpu_mem_usage=True, device_map='balanced')
+    tokenizer = transformers.AutoTokenizer.from_pretrained('mistralai/Mistral-7B-v0.1')
     tokenizer.pad_token = tokenizer.eos_token
     model.config.pad_token_id = tokenizer.eos_token_id
     if args.archive is not None:

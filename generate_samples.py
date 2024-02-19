@@ -44,9 +44,11 @@ def main():
         model_path = "mistralai/Mixtral-8x7B-v0.1"
     elif args.model_name == 'zephyr_sft':
         model_path = 'alignment-handbook/zephyr-7b-sft-full'
+    elif args.model_name == "pythia28":
+        model_path = 'EleutherAI/pythia-2.8b'
 
-    policy = transformers.AutoModelForCausalLM.from_pretrained(model_path, cache_dir=args.cache_dir, device_map='balanced')
-    tokenizer = transformers.AutoTokenizer.from_pretrained(model_path, cache_dir=args.cache_dir)
+    policy = transformers.AutoModelForCausalLM.from_pretrained(model_path, device_map='balanced')
+    tokenizer = transformers.AutoTokenizer.from_pretrained(model_path)
     print(tokenizer)
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
@@ -166,7 +168,7 @@ if __name__ == '__main__':
     parser.add_argument('--prompt_set', type=str, default='sharegpt')
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--ff', type=int, default=0)
-    parser.add_argument('--cache_dir', type=str, default='/home/ubuntu/.cache/rlaif/')
+    parser.add_argument('--cache_dir', type=str, default=os.getenv("PROJECT_CACHE", "~/.cache"))
     parser.add_argument('--max_length', type=int, default=512)
     parser.add_argument('--max_prompt_length', type=int, default=256)
     parser.add_argument('--chunk_size', type=int, default=32)

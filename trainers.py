@@ -160,7 +160,7 @@ class BasicTrainer(object):
 
         tokenizer_name_or_path = config.model.tokenizer_name_or_path or config.model.name_or_path
         rank0_print(f'Loading tokenizer {tokenizer_name_or_path}')
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name_or_path, cache_dir=get_local_dir(config.local_dirs))
+        self.tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name_or_path)
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
@@ -470,7 +470,7 @@ class BasicTrainer(object):
         if self.rank == 0:
             rank0_print('triggering alpaca evaluation...')
             proc = subprocess.Popen(['/bin/bash',
-                                     '/home/ubuntu/dpo-rlaif/eval_ckpt.sh', str(self.config.eval_gpu),
+                                     'dpo-rlaif/eval_ckpt.sh', str(self.config.eval_gpu),
                                      f'{output_dir}', f'{self.config.exp_name}-step{self.example_counter}'],
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                      close_fds=True)
@@ -628,13 +628,13 @@ if __name__ == '__main__':
 
     import transformers
     cache_dir = '/dev/shm/.cache'
-    tokenizer = transformers.AutoTokenizer.from_pretrained('gpt2-xl', cache_dir=cache_dir)
+    tokenizer = transformers.AutoTokenizer.from_pretrained('gpt2-xl')
     tokenizer.pad_token_id = tokenizer.eos_token_id
     iterator = get_batch_iterator(['wiki'], tokenizer=tokenizer, split='test', batch_size=1, sft_mode=True, seed=0, n_epochs=1, cache_dir=cache_dir, shuffle=False)
     eval_batches = list(iterator)
 
     policy = transformers.AutoModelForCausalLM.from_pretrained(
-        'gpt2-xl', cache_dir=cache_dir, low_cpu_mem_usage=True, device_map='balanced')
+        'gpt2-xl', low_cpu_mem_usage=True, device_map='balanced')
 
     n_tokens = 0
     total_logp = 0.
