@@ -41,7 +41,7 @@ To generate a preference dataset, we first need to sample completions from the S
 
 Next, we will label the pairs of completions using GPT-4 or Claude:
 
-    python label_ai_preferences.py --model1_name llama2_7b_1.0 --model2_name chatgpt --base_dir ${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9/ --max_num_comparisons 50000 --llm gpt4
+    python label_ai_preferences.py --model1_name mistral7b_1.0 --model2_name chatgpt --base_dir ${PROJECT_CACHE}/sharegpt_mistral7b_2024-02-19_16-55-49_904051/epoch-9/ --max_num_comparisons 50000 --llm gpt4
 
 By default, `--model2_name` uses GPT-3.5 completions in the ShareGPT dataset. It can alternately accept `gpt4`, `claude` or `<model_name>_<temp>`, where the last option can be used to label preferences on pairs of completions generated from the model itself. To change the critic labeling the preferences, pass the option to `--llm`. Only `gpt4` and `claude` are supported right now.
 
@@ -56,7 +56,7 @@ To train on newly generated annotations, pass the output directory from the prev
 
 # A Complete Example
 
-Let's work through a complete example training Llama2-7B on the ShareGPT dataset.
+Let's work through a complete example training Mistral-7B on the ShareGPT dataset.
 
 ### Step 1: Set up environment and paths
 
@@ -78,9 +78,9 @@ Set up the PROJECT_CACHE path. All trained models and data will be saved to the 
 
 We'll take advantage of FSDP's mixed precision in bfloat16 to speed up training; we usually see about a 50% speedup. By default, SFT will run for a single epoch over a mixture of the selected datasets. Datasets will be downloaded on the fly and cached locally.
 
-    python -u train.py loss=sft model=llama2_7b datasets=[sharegpt] exp_name=sharegpt_llama2_7b eval_batch_size=16 sample_during_eval=false debug=false lr=1e-6 trainer=FSDPTrainer activation_checkpointing=True data_fraction=0.1 save_every=epoch_3 n_epochs=9
+    python -u train.py loss=sft model=mistral7b datasets=[sharegpt] exp_name=sharegpt_mistral7b eval_batch_size=16 sample_during_eval=false debug=false lr=1e-6 trainer=FSDPTrainer activation_checkpointing=True data_fraction=0.1 save_every=epoch_3 n_epochs=9
 
-This runs SFT on 10% of the prompts in ShareGPT, training for 9 epochs and saving every 3 epochs. Assume that the auto-generated output directory is `${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/`
+This runs SFT on 10% of the prompts in ShareGPT, training for 9 epochs and saving every 3 epochs. Assume that the auto-generated output directory is `${PROJECT_CACHE}/sharegpt_mistral7b_2024-02-19_16-55-49_904051/`
 
 > Note: this command is run on a machine with 8 80GB A100s; on this hardware, SFT takes about 2 hours. If you have less compute available, you might need to increase the number of gradient accumulation steps, and SFT will take longer.
 
@@ -88,25 +88,25 @@ This runs SFT on 10% of the prompts in ShareGPT, training for 9 epochs and savin
 
 You can directly download our previously generated samples below:
 
-    wget -P ${PROJECT_CACHE}/sharegpt_data/comparisons_gpt4/mistral7bsft_vs_chatgpt/annotations.json https://huggingface.co/datasets/TRI-ML/dpo-rlaif-data/resolve/main/comparisons_gpt4/mistral7bsft_vs_chatgpt/annotations.json
+    wget -P ${PROJECT_CACHE}/sharegpt_data/comparisons_gpt4/mistral7bsft_vs_chatgpt https://huggingface.co/datasets/TRI-ML/dpo-rlaif-data/resolve/main/comparisons_gpt4/mistral7bsft_vs_chatgpt/annotations.json
 
 These preferences are generated using previously fine-tuned models such as Llama and Mistral. 
 
 Alternatively, if you wish to generate your own preference data using your newly SFT-ed model, you can do so by following the steps below.
 
-    bash parallel_sample.sh ${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9/ llama2_7b
+    bash parallel_sample.sh ${PROJECT_CACHE}/sharegpt_mistral7b_2024-02-19_16-55-49_904051/epoch-9/ mistral7b
 
 Note that the script above assumes 8 GPUs. If you are using less GPUs, then you may need to modify the script accordingly. Specifically, lines 10 (`for i in {0..7}`) and 12 (`ff_idx`) will need to be changed. Afterwards, you can run the script below to perform the preference labeling using GPT4.
 
-    python label_ai_preferences.py --model1_name llama2_7b_1.0 --base_dir ${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9/ --max_num_comparisons 50000 --llm gpt4
+    python label_ai_preferences.py --model1_name mistral7b_1.0 --base_dir ${PROJECT_CACHE}/sharegpt_mistral7b_2024-02-19_16-55-49_904051/epoch-9/ --max_num_comparisons 50000 --llm gpt4
 
-If you generate your own AI feedback dataset, it will be stored by default at `${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9/comparisons_gpt4/temp1.0_vs_chatgpt/annotations.json`.
+If you generate your own AI feedback dataset, it will be stored by default at `${PROJECT_CACHE}/sharegpt_mistral7b_2024-02-19_16-55-49_904051/epoch-9/comparisons_gpt4/temp1.0_vs_chatgpt/annotations.json`.
 
 ### Step 5: Run DPO
 
-Check either wandb (if enabled, it is by default) or your output log to find the local run directory. To run DPO, you'll need the path to the final weights, which will look something like `${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9/policy.pt`.
+Check either wandb (if enabled, it is by default) or your output log to find the local run directory. To run DPO, you'll need the path to the final weights, which will look something like `${PROJECT_CACHE}/sharegpt_mistral7b_2024-02-19_16-55-49_904051/epoch-9/policy.pt`.
 
-    CUDA_VISIBLE_DEVICES=0,1,2,3 python3 train.py loss=dpo loss.beta=0.05 model.archive=${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9/policy.pt prefs_path=${PROJECT_CACHE}/sharegpt_data/comparisons_gpt4/mistral7bsft_vs_chatgpt/annotations.json exp_name=llama2_7b_dpo data_fraction=1.0 model=llama2_7b save_every=epoch_1 n_epochs=3
+    CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 train.py loss=dpo loss.beta=0.05 model.archive=~/.cache/rlaif/sharegpt_pythia28_2024-02-19_16-55-49_904051/epoch-3/policy.pt prefs_path=${PROJECT_CACHE}/sharegpt_data/comparisons_gpt4/mistral7bsft_vs_chatgpt/annotations.json exp_name=pythia28 data_fraction=1.0 model=pythia28 save_every=epoch_1 n_epochs=3
 
 > On 8 80GB A100s, DPO training took about 2hrs 45min.
 
@@ -117,7 +117,7 @@ Evaluation is done using an oracle annotator with [AlpacaEval](https://github.co
 
 Below is a specific example:
 
-    bash ./eval_ckpt.sh 0 ${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9 llama2_7b_epoch_9_sft_0.1 gpt4 0.7 llama2_7b
+    bash ./eval_ckpt.sh 0 ${PROJECT_CACHE}/sharegpt_mistral7b_2024-02-19_16-55-49_904051/epoch-9 mistral7b_epoch_9_sft_0.1 gpt4 0.7 mistral7b
 
 
 ### Customizing training
