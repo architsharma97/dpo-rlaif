@@ -1,0 +1,19 @@
+# do DPO preference-based training
+name: dpo
+
+# the temperature parameter for DPO; lower values mean we care less about
+# the reference model
+beta: ???
+
+# regularize DPO with SFT loss
+sft_reg: 0.0
+
+# importance correction for rejected samples
+importance_correction: false
+
+# if true, use a uniform (maximum entropy) reference model
+reference_free: false
+
+ipo: false
+
+robust_eps: 0.0
