@@ -16,14 +16,14 @@ Bonus files:
 1. Training reward models
 2. Bandit experiments comparing RLAIF and SFT (Figure 6 in the [paper](https://arxiv.org/abs/)).
 
-We first give a general description for every functions, and then we work through an exact example to fine-tune a LLM by SFT and DPO on AI feedback. The code here supports full fine-tuning for causal LLMs accessible through the transformers API. Checkout [Customizing training](#customizing-training) to fine-tune your own LLMs.
+We first give a general description for every function, and then we work through an exact example to fine-tune a LLM by SFT and DPO on AI feedback. The code here supports full fine-tuning for causal LLMs accessible through the HuggingFace transformers API. Check out [Customizing training](#customizing-training) to fine-tune your own LLMs.
 
 ## Generating Instruction-tuning Data
 Ensure that `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` is setup before using the script. This script will generate completions for a filtered set of instructions from ShareGPT using the API, and dump the instruction-completion pairs in a json file in `<PROJECT_CACHE>`. An example command is given below:
 
-    python ai_completions.py --ai_model gpt4 --df 1.0
+    python ai_completions.py --ai_model gpt4 --data_fraction 1.0
 
-You can pass `claude` to `--ai_model` to generate completions using `Claude-v1`, and pass a fraction < 1 to `--df` to generate completions for fewer instructions. Note, that we already provide the instruction-tuning datasets used for our experiments along with this repository.
+You can pass `claude` to `--ai_model` to generate completions using `Claude-v1`, and pass a fraction < 1 to `--data_fraction` to generate completions for fewer instructions. Note, that we already provide the instruction-tuning datasets used for our experiments along with this repository.
 
 ## Running SFT
 
@@ -96,7 +96,7 @@ Alternatively, if you wish to generate your own preference data using your newly
 
     bash parallel_sample.sh ${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9/ llama2_7b
 
-Note that the script above assumes 8 GPUs. If you are using less GPUs, then you may need to modify the script accordingly. Specifically, lines 10 (`for i in {0..7}`) and 12 (`ff_idx`) will need ot be changed. Afterwards, you can run the script below to perform the preference labeling using GPT4.
+Note that the script above assumes 8 GPUs. If you are using less GPUs, then you may need to modify the script accordingly. Specifically, lines 10 (`for i in {0..7}`) and 12 (`ff_idx`) will need to be changed. Afterwards, you can run the script below to perform the preference labeling using GPT4.
 
     python label_ai_preferences.py --model1_name llama2_7b_1.0 --base_dir ${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9/ --max_num_comparisons 50000 --llm gpt4
 
@@ -128,7 +128,7 @@ You can use one of the pre-configured models by passing `model=some_model`, wher
 If you want to use another model, just create a new config for that model (following our examples; it must be a `.yaml` file!), or use `model=blank_model` with `model.name_or_path=NAME_OR_PATH`, optionally `model.tokenizer_name_or_path=TOKENIZER_NAME_OR_PATH` if it is different than the model's name/path, and `model.block_name=NAME_OF_TRANSFORMER_BLOCK` (if you are using FSDP). The only other options you might want to change are the dpo loss options, which are `loss.beta` and `loss.reference_free` (see `config/loss/dpo.yaml`).
 
 # Citation
-If our paper or this repository is useful forr your research, you can use the following BibTeX entry:
+If our paper or this repository is useful for your research, you can use the following BibTeX entry:
 
     @article{
         sharma2024critical,
