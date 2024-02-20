@@ -5,7 +5,7 @@ This codebase mostly builds on the existing code from the [DPO](https://github.c
 
 This repo includes reference code used to investigate training with AI feedback, as described in the paper [A Critical Evaluation of AI Feedback for Aligning Language Models](https://arxiv.org/abs/2305.18290).
 
-The code here supports any causal HuggingFace model- look at our examples in `config/model` to add your own. Adding your own datasets is also easy. See [the README section](#adding-new-datasets) on adding datasets.
+The code here supports any causal HuggingFace model - look at our examples in `config/model` to add your own. Adding your own datasets is also easy. See [the README section](#adding-new-datasets) on adding datasets.
 
 Our AI feedback DPO pipeline is outlined below:
 
@@ -21,8 +21,8 @@ Repo files:
     - `utils.py`: some convenience functions used by multiple other files
     - `preference_datasets.py`: dataset processing logic for both SFT and DPO preference-based training; **this is where you'll need to make some additions to train on your own data**
 
-- (New scripts:) 
-    - `ai_completions.py`: 
+- New scripts:
+    - `ai_completions.py`: used to generate SFT completions
     - `generate_samples.py`: 
     - `label_ai_preferences.py`: 
     - `reward_trainer.py`: 
@@ -61,9 +61,9 @@ Run DPO on Pythia 6.9B with effective batch size 64:
 
 ## A complete example
 
-Let's work through a complete example training Pythia 2.8B on the ShareGPT dataset.
+Let's work through a complete example training Llama2-7B on the ShareGPT dataset.
 
-See sample wandb outputs for this example [here](https://wandb.ai/eric_anthony_mitchell/dpo-demos) (tagged `readme-example`).
+<!-- See sample wandb outputs for this example [here](https://wandb.ai/eric_anthony_mitchell/dpo-demos) (tagged `readme-example`). -->
 
 ### Step 1: Set up environment and paths
 
@@ -85,35 +85,37 @@ Set up the PROJECT_CACHE path. All trained models and data will be saved to the 
 
 We'll take advantage of FSDP's mixed precision in bfloat16 to speed up training; we usually see about a 50% speedup. By default, SFT will run for a single epoch over a mixture of the selected datasets. Datasets will be downloaded on the fly and cached locally.
 
-    python -u train.py loss=sft model=pythia28 datasets=[sharegpt] exp_name=sharegpt_pythia28 eval_batch_size=16 sample_during_eval=false debug=false lr=1e-6 trainer=FSDPTrainer activation_checkpointing=True data_fraction=0.1 save_every=epoch_1 n_epochs=3
+    python -u train.py loss=sft model=llama2_7b datasets=[sharegpt] exp_name=sharegpt_llama2_7b eval_batch_size=16 sample_during_eval=false debug=false lr=1e-6 trainer=FSDPTrainer activation_checkpointing=True data_fraction=0.1 save_every=epoch_3 n_epochs=9
 
-This runs SFT on 10% of the prompts in ShareGPT, training for 3 epochs and saving every 1 epoch.
+This runs SFT on 10% of the prompts in ShareGPT, training for 9 epochs and saving every 3 epochs.
 
-> Note: this command is run on a machine with 4 80GB A100s; on this hardware, SFT takes about 1hr 30min. If you have less compute available, you might need to increase the number of gradient accumulation steps, and SFT will take longer.
+> Note: this command is run on a machine with 8 80GB A100s; on this hardware, SFT takes about 2 hours. If you have less compute available, you might need to increase the number of gradient accumulation steps, and SFT will take longer.
 
 
 ### Step 4: Download/generate preference data for DPO
 
-For this step, you can directly download our previously generated samples below:
+You can directly download our previously generated samples below:
 
-    wget -P ${PROJECT_CACHE}/comparisons_gpt4 (HF-path-here)
+    wget -P ${PROJECT_CACHE}/sharegpt_data/comparisons_gpt4/mistral7bsft_vs_chatgpt/annotations.json https://huggingface.co/datasets/TRI-ML/dpo-rlaif-data/resolve/main/comparisons_gpt4/mistral7bsft_vs_chatgpt/annotations.json
 
-These preferences are generated using previously fine-tuned models such as Llama and Mistral. If you wish to generate your own preference data, you can do so by following the steps below.
+These preferences are generated using previously fine-tuned models such as Llama and Mistral. 
 
-    bash parallel_sample.sh ~/.cache/rlaif/sharegpt_pythia28_2024-02-19_16-55-49_904051/epoch-3/ pythia28
+Alternatively, if you wish to generate your own preference data using your newly SFT-ed model, you can do so by following the steps below.
+
+    bash parallel_sample.sh ${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9/ llama2_7b
 
 Then,
 
-    python label_ai_preferences.py --model1_name pythia28_1.0 --base_dir /home/ubuntu/.cache/rlaif/sharegpt_pythia28_2024-02-19_16-55-49_904051/epoch-3/ --max_num_comparisons 50000 --llm gpt4
+    python label_ai_preferences.py --model1_name llama2_7b_1.0 --base_dir ${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9/ --max_num_comparisons 50000 --llm gpt4
 
 
 ### Step 5: Run DPO
 
 Check either wandb (if enabled, it is by default) or your output log to find the local run directory. To run DPO, you'll need the path to the final weights, which will look something like `/some/cache/dir/pythia28_hh_sft_bf16_2023-06-21_16-58-17_973996/LATEST/policy.pt`. The `LATEST` directory contains the final set of weights from the end of training.
 
-    python -u train.py loss=dpo loss.beta=0.05 model.archive=/home/ubuntu/.cache/rlaif/sharegpt_pythia28_2024-02-19_16-55-49_904051/epoch-3/policy.pt prefs_path=/home/ubuntu/.cache/rlaif/sharegpt_pythia28_2024-02-19_16-55-49_904051/epoch-3/comparisons_gpt4/temp1.0_vs_chatgpt/annotations.json exp_name=pythia28_dpo data_fraction=1.0 model=pythia28 save_every=epoch_1 n_epochs=3
+    python -u train.py loss=dpo loss.beta=0.05 model.archive=${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9/policy.pt prefs_path=${PROJECT_CACHE}/sharegpt_data/comparisons_gpt4/mistral7bsft_vs_chatgpt/annotations.json exp_name=llama2_7b_dpo data_fraction=1.0 model=llama2_7b save_every=epoch_1 n_epochs=3
 
-On 4 80GB A100s, DPO training took about 2hrs 45min.
+On 8 80GB A100s, DPO training took about 2hrs 45min.
 
 
 ### Step 6: Run AlpacaEval evaluations:
@@ -123,7 +125,7 @@ Evaluation is done using an oracle annotator with [AlpacaEval](https://github.co
 
 Below is a specific example:
 
-    bash ./eval_ckpt.sh 0 /home/ubuntu/.cache/rlaif/sharegpt_pythia28_2024-02-19_16-55-49_904051/epoch-3/ pythia28_epoch_3_sft_0.1 gpt4 0.7 pythia28
+    bash ./eval_ckpt.sh 0 ${PROJECT_CACHE}/sharegpt_llama2_7b_2024-02-19_16-55-49_904051/epoch-9 llama2_7b_epoch_9_sft_0.1 gpt4 0.7 llama2_7b
 
 
 ### Customizing training
