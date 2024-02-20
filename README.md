@@ -119,6 +119,12 @@ Below is a specific example:
 
     bash ./eval_ckpt.sh 0 ${PROJECT_CACHE}/sharegpt_mistral7b_2024-02-19_16-55-49_904051/epoch-9 mistral7b_epoch_9_sft_0.1 gpt4 0.7 mistral7b
 
+## Bandit experiment
+
+Section 5 of the paper discusses mechanistic explanations for the failure of RLAIF to provide substantial improvements over SFT on a strong teacher. To provide intuition, we conduct a synthetic experiment in a simple bandit setting (i.e., no prompt, only a small number of possible synthetic responses). This experiment illustrates how the improvement of RLAIF may not be sufficient to overcome a sufficiently poor initial model, relative to a strong teacher model.
+
+Run all cells in `synthetic-rlaif.ipynb` to run this experiment. This experiment requires only `torch`, `numpy`, and `matplotlib` to run.
+
 
 ### Customizing training
 The options for training are in `config/config.yaml`, `config/model/blank_model.yaml`, and `config/loss/dpo.yaml`. See the comments in these files for more information on what they do.
