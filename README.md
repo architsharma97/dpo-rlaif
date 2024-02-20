@@ -14,7 +14,7 @@ This repository supports the following functions:
 
 Bonus files:
 1. Training reward models
-2. Bandit experiments comparing RLAIF and SFT (Figure 6 in the [paper](https://arxiv.org/abs/)).
+2. Bandit experiments comparing RLAIF and SFT (Figure 6 in the [paper](https://arxiv.org/abs/2402.12366)).
 
 We first give a general description for every function, and then we work through an exact example to fine-tune a LLM by SFT and DPO on AI feedback. The code here supports full fine-tuning for causal LLMs accessible through the HuggingFace transformers API. Check out [Customizing training](#customizing-training) to fine-tune your own LLMs.
 
