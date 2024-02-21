@@ -111,7 +111,7 @@ Check either wandb (if enabled, it is by default) or your output log to find the
 > On 8 80GB A100s, DPO training took about 2hrs 45min.
 
 ### Step 6: Run AlpacaEval evaluations:
-Evaluation is done using an oracle annotator with [AlpacaEval](https://github.com/tatsu-lab/alpaca_eval). To run the evaluation script, the general pattern is
+Evaluation is done using an oracle annotator with [AlpacaEval](https://github.com/tatsu-lab/alpaca_eval). Please set the environment variable `IS_ALPACA_EVAL_2=False` to reproduce the experiments in the paper. To run the evaluation script, the general pattern is
 
     bash ./eval_ckpt.sh (gpu-num) (path-to-checkpoint) (eval-run-name) (oracle-annotator-name) (temperature) (model-name)
 
