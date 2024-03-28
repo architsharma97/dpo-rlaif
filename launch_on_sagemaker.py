@@ -10,7 +10,7 @@ import boto3
 from sagemaker.pytorch import PyTorch
 
 
-NAME = "deam"
+NAME = "dpo-rlaif"
 INSTANCE_MAPPER = {
     "p3": "ml.p3.16xlarge",
     "p4": "ml.p4d.24xlarge",

@@ -1,7 +1,6 @@
 ipykernel==6.23.1
 numpy==1.24.3
 tokenizers==0.15.1
-torch==2.0.1
 tqdm==4.65.0
 transformers==4.35.2
 datasets==2.16.1
@@ -13,3 +12,4 @@ alpaca-eval==0.3.0
 openai==0.28.1
 anthropic==0.14.0
 trl==0.8.1
+torch==2.2.0

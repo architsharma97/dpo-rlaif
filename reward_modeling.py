@@ -164,6 +164,9 @@ if __name__ == "__main__":
         num_proc=64,
     )
 
+    # lora_task_type needs to be SEQ_CLS if using peft with reward model training.
+    model_config.lora_task_type = "SEQ_CLS"
+
     ################
     # Training
     ################
@@ -174,6 +177,7 @@ if __name__ == "__main__":
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         peft_config=get_peft_config(model_config),
+        ddp_find_unused_parameters=False,
     )
     trainer.train()
     trainer.save_model(reward_config.output_dir)

@@ -1,10 +1,10 @@
 model_name_or_path: "mistralai/Mistral-7B-v0.1"
 archive: "/opt/ml/input/data/model/policy.pt"
 prefs_path: "/opt/ml/input/data/training/annotations.json"
-data_fraction: 0.1
+data_fraction: 1.0
 torch_dtype: "bfloat16"
 max_length: 512
-output_dir: "/opt/ml/checkpoint/mistral7bsft0.1/reward_model/"
+output_dir: "/opt/ml/checkpoints/"
 per_device_train_batch_size: 2
 per_device_eval_batch_size: 2
 gradient_accumulation_steps: 4
@@ -14,4 +14,5 @@ logging_steps: 30
 save_steps: 0.25
 run_name: "mistral-rlaif-reward-modeling"
 use_peft: ""
+lora_task_type: "SEQ_CLS"
 
