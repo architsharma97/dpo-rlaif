@@ -71,9 +71,10 @@ if __name__ == "__main__":
         token=script_args.token,
     )
     tokenizer = AutoTokenizer.from_pretrained(model_config.model_name_or_path, 
-                                                use_fast=True, 
-                                                 truncation_side="left", 
-                                                 model_max_length=reward_config.max_length)
+                    use_fast=True, 
+                    truncation_side="left", 
+                    model_max_length=reward_config.max_length,
+                    torch_dtype=torch_dtype)
     tokenizer.pad_token = tokenizer.eos_token
 
     model = AutoModelForSequenceClassification.from_pretrained(

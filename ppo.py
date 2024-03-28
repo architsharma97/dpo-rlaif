@@ -22,10 +22,14 @@ import torch
 from accelerate import Accelerator
 from datasets import load_dataset
 from peft import LoraConfig
+from preference_datasets import get_sharegpt_aiprefs
+from datasets import Dataset
+
+
 from tqdm import tqdm
 from transformers import AutoTokenizer, HfArgumentParser, pipeline
 
-from trl import AutoModelForCausalLMWithValueHead, AutoModelForSeq2SeqLMWithValueHead, PPOConfig, PPOTrainer, set_seed
+from trl import AutoModelForCausalLMWithValueHead, AutoModelForSeq2SeqLMWithValueHead, ModelConfig, PPOConfig, PPOTrainer, set_seed, get_quantization_config
 from trl.core import LengthSampler
 from trl.import_utils import is_npu_available, is_xpu_available
 
@@ -35,59 +39,83 @@ tqdm.pandas()
 
 @dataclass
 class ScriptArguments:
-    use_seq2seq: bool = field(default=False, metadata={"help": "whether to use seq2seq"})
     trust_remote_code: bool = field(default=False, metadata={"help": "Enable `trust_remote_code`"})
 
-    # LoraConfig
-    use_peft: bool = field(default=False, metadata={"help": "whether to use peft"})
-    lora_alpha: Optional[float] = field(default=16, metadata={"help": "the lora alpha parameter"})
-    lora_r: Optional[int] = field(default=16, metadata={"help": "the lora r parameter"})
 
-
-parser = HfArgumentParser((ScriptArguments, PPOConfig))
-args, ppo_config = parser.parse_args_into_dataclasses()
+parser = HfArgumentParser((ScriptArguments, PPOConfig, ModelConfig))
+args, ppo_config, model_config = parser.parse_args_into_dataclasses()
 
 # We then define the arguments to pass to the sentiment analysis pipeline.
 # We set `return_all_scores` to True to get the sentiment score for each token.
 sent_kwargs = {"return_all_scores": True, "function_to_apply": "none", "batch_size": 16}
 
-trl_model_class = AutoModelForCausalLMWithValueHead if not args.use_seq2seq else AutoModelForSeq2SeqLMWithValueHead
-
-
 # Below is an example function to build the dataset. In our case, we use the IMDB dataset
 # from the `datasets` library. One should customize this function to train the model on
 # its own dataset.
-def build_dataset(config, query_dataset, input_min_text_length=2, input_max_text_length=8):
+def build_dataset(
+    tokenizer,
+    dataset_name="lvwerra/stack-exchange-paired",
+):
     """
     Build dataset for training. This builds the dataset from `load_dataset`, one should
     customize this function to train the model on its own dataset.
 
     Args:
-        query_dataset (`str`):
+        dataset_name (`str`):
             The name of the dataset to be loaded.
 
     Returns:
         dataloader (`torch.utils.data.DataLoader`):
             The dataloader for the dataset.
     """
-    tokenizer = AutoTokenizer.from_pretrained(config.model_name)
-    tokenizer.pad_token = tokenizer.eos_token
-    # load imdb with datasets
-    ds = load_dataset(query_dataset, split="train")
-    ds = ds.rename_columns({"text": "review"})
-    ds = ds.filter(lambda x: len(x["review"]) > 200, batched=False)
 
-    input_size = LengthSampler(input_min_text_length, input_max_text_length)
+    num_proc = 24
 
-    def tokenize(sample):
-        sample["input_ids"] = tokenizer.encode(sample["review"])[: input_size()]
-        sample["query"] = tokenizer.decode(sample["input_ids"])
-        return sample
+    def simplify_aipref_dataset(dataset):
+        prompts = []
+        chosen = []
+        rejected = []
+        sft_targets = []
 
-    ds = ds.map(tokenize, batched=False)
+        for prompt, data in dataset.items():
+            prompts.append(prompt)
+            sft_targets.append(data['sft_target'])
+            responses = data['responses']
+            pairs = data['pairs'][0]
+
+            chosen.append(responses[pairs[0]])
+            rejected.append(responses[pairs[1]])
+
+        return Dataset.from_dict({
+            'prompts': prompts,
+            'chosen': chosen,
+            'rejected': rejected,
+            'sft_targets': sft_targets,
+        })
+
+    def preprocess_function(examples):
+        new_examples = {
+            "query": [],
+            "input_ids": [],
+        }
+        for question in examples["question"]:
+            query = "Question: " + question + "\n\nAnswer: "
+            tokenized_question = tokenizer(query, truncation=True)
+            new_examples["query"].append(query)
+            new_examples["input_ids"].append(tokenized_question["input_ids"])
+
+        return new_examples
+
+    ds = train_dataset.map(
+        preprocess_function,
+        batched=True,
+        num_proc=num_proc,
+        remove_columns=original_columns,
+    )
+    ds = ds.filter(lambda x: len(x["input_ids"]) < 512, batched=False)
+
     ds.set_format(type="torch")
     return ds
-
 
 # We retrieve the dataloader by calling the `build_dataset` function.
 dataset = build_dataset(ppo_config, ppo_config.query_dataset)
@@ -102,21 +130,24 @@ set_seed(ppo_config.seed)
 
 # Now let's build the model, the reference model, and the tokenizer.
 if not args.use_peft:
-    ref_model = trl_model_class.from_pretrained(ppo_config.model_name, trust_remote_code=args.trust_remote_code)
+    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(ppo_config.model_name, trust_remote_code=args.trust_remote_code)
     device_map = None
     peft_config = None
 else:
     peft_config = LoraConfig(
-        r=args.lora_r,
-        lora_alpha=args.lora_alpha,
+        r=model_config.lora_r,
+        lora_alpha=model_config.lora_alpha,
+        lora_dropout=model_config.lora_dropout,
         bias="none",
-        task_type="CAUSAL_LM",
+        task_type=model_config.lora_task_type,
+        target_modules=model_config.lora_target_modules,
+        modules_to_save=model_config.lora_modules_to_save,
     )
     ref_model = None
     # Copy the model to each device
     device_map = {"": Accelerator().local_process_index}
 
-model = trl_model_class.from_pretrained(
+model = AutoModelForCausalLMWithValueHead.from_pretrained(
     ppo_config.model_name,
     trust_remote_code=args.trust_remote_code,
     device_map=device_map,
