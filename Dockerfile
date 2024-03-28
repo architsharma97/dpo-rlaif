@@ -1,4 +1,5 @@
 ARG AWS_REGION
+ARG INSTANCE_TYPE
 
 # SageMaker PyTorch image
 FROM 763104351884.dkr.ecr.${AWS_REGION}.amazonaws.com/pytorch-training:2.1.0-gpu-py310-cu121-ubuntu20.04-sagemaker
@@ -20,21 +21,22 @@ ENV PATH="/opt/ml/code:${PATH}"
 ENV SAGEMAKER_SUBMIT_DIRECTORY /opt/ml/code
 
 # /opt/ml and all subdirectories are utilized by SageMaker, use the /code subdirectory to store your user code.
+RUN echo "${AWS_REGION}"
+
+RUN if [ "${INSTANCE_TYPE}" != "p5" ] ; then \
+       pip uninstall transformer_engine -y; \
+    fi
+
 COPY . /opt/ml/code/
 RUN rm -f /opt/ml/code/setup.py
 
 RUN pip install -r /opt/ml/code/requirements.txt
 RUN pip uninstall flash-attn -y
 RUN pip install flash-attn>=2.2
+
+
 # # Prevent sagemaker from installing requirements again.
 # RUN rm /opt/ml/code/setup.py
 RUN rm -f /opt/ml/code/requirements.txt
-
 # Defines a script entrypoint 
 # ENV SAGEMAKER_PROGRAM eval/eval_openlm_new.py
-
-RUN mkdir -p /opt/ml/input/data/training
-RUN mkdir -p /opt/ml/model/
-
-RUN cp /data/dpo_rlaif/mistral7bsft0.1/policy.pt /opt/ml/model/
-RUN cp /data/dpo_rlaif/mistral7bsft0.1/comparisons_gpt4/temp1.0_vs_chatgpt/annotations.json /opt/ml/input/data/training/

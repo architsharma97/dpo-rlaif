@@ -44,7 +44,7 @@ def get_image(user, instance_type, docker_dir, build_type=None, profile="powerus
         commands = [
             # Log in to Sagemaker account to get image.
             f"{login_cmd} 763104351884.dkr.ecr.{region}.amazonaws.com",
-            f"docker build --progress=plain -f {dockerfile_base} --build-arg AWS_REGION={region} -t {algorithm_name} .",
+            f"docker build --progress=plain -f {dockerfile_base} --build-arg AWS_REGION={region} --build-arg INSTANCE_TYPE={instance_type} -t {algorithm_name} .",
             f"docker tag {algorithm_name} {fullname}",
             f"{login_cmd} {fullname}",
             (
@@ -225,7 +225,7 @@ def main_after_setup_move(args):
         "input_mode": "FastFile",
         "keep_alive_period_in_seconds": 30 * 60 if not args.spot_instance else None,  # 30 minutes
         "volume_size": 1000,
-        # "model_uri": args.model_uri
+        "model_uri": args.model_uri
     }
 
     if args.command == "python":
@@ -237,7 +237,7 @@ def main_after_setup_move(args):
 
     estimator = PyTorch(**estimator_args)
     estimator.fit(        
-        # inputs=args.input_s3_path
+        inputs=args.input_s3_path
     )
 
 

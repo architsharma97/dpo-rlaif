@@ -17,8 +17,6 @@ ENV NCCL_DEBUG=info
 RUN mkdir -p /opt/ml/input/data/training
 RUN mkdir -p /opt/ml/model/
 
-RUN cp /data/dpo_rlaif/mistral7bsft0.1/policy.pt /opt/ml/model/
-RUN cp /data/dpo_rlaif/mistral7bsft0.1/comparisons_gpt4/temp1.0_vs_chatgpt/annotations.json /opt/ml/input/data/training/
 
 # ENV SAGEMAKER_PROGRAM eval/eval_openlm_new.py
 # ENV SAGEMAKER_PROGRAM open_lm/main.py

@@ -48,6 +48,8 @@ if __name__ == "__main__":
     parser.add_argument("--data_fraction", type=float, default=1.0)
     # parser.add_argument("--tokenizer", type=str, default="mistralai/Mistral-7B-v0.1")
     parser.add_argument('--archive', type=str, default="/data/dpo_rlaif/mistral7bsft0.1/comparisons_gpt4/temp1.0_vs_chatgpt/annotations.json")
+    parser.add_argument('--token', type=str, default=None)
+
     # parser.add_argument("--max_length", type=int, default=512)
     reward_config, model_config, script_args = parser.parse_args_into_dataclasses()
     reward_config.gradient_checkpointing_kwargs = dict(use_reentrant=False)
@@ -66,6 +68,7 @@ if __name__ == "__main__":
         trust_remote_code=model_config.trust_remote_code,
         device_map=get_kbit_device_map() if quantization_config is not None else None,
         quantization_config=quantization_config,
+        token=script_args.token,
     )
     tokenizer = AutoTokenizer.from_pretrained(model_config.model_name_or_path, 
                                                 use_fast=True, 
