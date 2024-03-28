@@ -37,7 +37,8 @@ from datasets import Dataset
 
 from preference_datasets import get_sharegpt_aiprefs
 from trl import ModelConfig, RewardConfig, RewardTrainer, get_kbit_device_map, get_peft_config, get_quantization_config
-
+from peft import AutoPeftModelForSequenceClassification
+import os
 
 tqdm.pandas()
 
@@ -176,3 +177,14 @@ if __name__ == "__main__":
     )
     trainer.train()
     trainer.save_model(reward_config.output_dir)
+
+    # Free memory for merging weights
+    del model
+
+    torch.cuda.empty_cache()
+
+    model = AutoPeftModelForSequenceClassification.from_pretrained(reward_config.output_dir, device_map="auto", torch_dtype=torch.bfloat16, num_labels=1)
+    model = model.merge_and_unload()
+
+    output_merged_dir = os.path.join(reward_config.output_dir, "final_merged_checkpoint")
+    model.save_pretrained(output_merged_dir, safe_serialization=True)
