@@ -99,7 +99,7 @@ def main(args=None):
     parser.add_argument("--spot-instance", action="store_true")
     parser.add_argument("--command", default="", choices=["python", "accelerate", ""])
     parser.add_argument("--model_uri", default="s3://tri-ml-datasets/scratch/archit.sharma/mistral7bsft0.1/policy.pt", type=str)
-    parser.add_argument("--input_s3_path", type=str, default="s3://tri-ml-datasets/scratch/archit.sharma/mistral7bsft0.1/comparisons_gpt4/temp1.0_vs_chatgpt/annotations.json")
+    parser.add_argument("--input_s3_path", type=str, default="s3://tri-ml-datasets/scratch/archit.sharma/mistral7bsft0.1/comparisons_gpt4/temp1.0_vs_chatgpt/")
     args = parser.parse_args(args)
 
     # Need to rename setup.py to avoid Sagemaker treating this as a module and causing errors.

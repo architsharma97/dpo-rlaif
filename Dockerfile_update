@@ -14,9 +14,5 @@ RUN rm -f /opt/ml/code/requirements.txt
 
 ENV NCCL_DEBUG=info
 
-RUN mkdir -p /opt/ml/input/data/training
-RUN mkdir -p /opt/ml/model/
-
-
 # ENV SAGEMAKER_PROGRAM eval/eval_openlm_new.py
 # ENV SAGEMAKER_PROGRAM open_lm/main.py

@@ -81,9 +81,10 @@ if __name__ == "__main__":
     )
     model.config.pad_token_id = model.config.eos_token_id
 
-    state_dict = torch.load(script_args.archive, map_location='cpu')
-    model.load_state_dict(state_dict['state'], strict=False)
-    print('loaded pre-trained weights')
+    if script_args.archive is not None:
+        state_dict = torch.load(script_args.archive, map_location='cpu')
+        model.load_state_dict(state_dict['state'], strict=False)
+        print('loaded pre-trained weights')
 
     if model_config.lora_task_type != "SEQ_CLS":
         warnings.warn(
@@ -148,27 +149,18 @@ if __name__ == "__main__":
         return new_examples
 
     # Preprocess the dataset and filter out examples that are longer than args.max_length
-    # train_dataset = preprocess_function(raw_train_dataset)
     train_dataset = raw_train_dataset.map(
         preprocess_function,
         batched=True,
         num_proc=64,
     )
-    # train_dataset = raw_train_dataset.filter(
-    #     lambda x: len(x["input_ids_chosen"]) <= reward_config.max_length
-    #     and len(x["input_ids_rejected"]) <= reward_config.max_length
-    # )
 
-    # eval_dataset = preprocess_function(raw_eval_dataset)
+
     eval_dataset = raw_eval_dataset.map(
         preprocess_function,
         batched=True,
         num_proc=64,
     )
-    # eval_dataset = raw_eval_dataset.filter(
-    #     lambda x: len(x["input_ids_chosen"]) <= reward_config.max_length
-    #     and len(x["input_ids_rejected"]) <= reward_config.max_length
-    # )
 
     ################
     # Training
